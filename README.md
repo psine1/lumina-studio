@@ -25,8 +25,12 @@ La clave se lee exclusivamente en los Route Handlers. Nunca se envía al navegad
 La implementación usa el host `https://api.magnific.com` y la cabecera `x-magnific-api-key`, de acuerdo con la documentación oficial actual.
 
 - Imagen principal: `POST /v1/ai/mystic`
+- Imagen Google: `POST /v1/ai/text-to-image/nano-banana-pro` y `nano-banana-pro-flash`
 - Imagen y edición: `POST /v1/ai/text-to-image/flux-2-pro`
+- Imagen rápida: `POST /v1/ai/text-to-image/flux-2-turbo`
+- Imagen con tipografía: `POST /v1/ai/text-to-image/seedream-v4-5`
 - Video desde texto: `POST /v1/ai/text-to-video/runway-4-5`
+- Video desde texto con audio: `POST /v1/ai/image-to-video/kling-v2-6-pro`
 - Video desde imagen: `POST /v1/ai/image-to-video/kling-std`
 - Estado: `GET {ruta-del-modelo}/{task-id}`
 

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { generateVideo } from "@/lib/magnific/client";
 
 const schema = z.object({
-  model: z.enum(["runway-4-5", "kling-1-6"]),
+  model: z.enum(["runway-4-5", "kling-2-6-pro", "kling-1-6"]),
   prompt: z.string().trim().min(3).max(2500),
   aspectRatio: z.string().optional(),
   duration: z.string().optional(),

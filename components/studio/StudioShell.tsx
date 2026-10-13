@@ -60,6 +60,19 @@ const ratioLabels: Record<string, string> = {
   social_story_9_16: "9:16",
   traditional_3_4: "3:4",
   classic_4_3: "4:3",
+  portrait_2_3: "2:3",
+  standard_3_2: "3:2",
+  cinematic_21_9: "21:9",
+  "1:1": "1:1",
+  "2:3": "2:3",
+  "3:2": "3:2",
+  "4:3": "4:3",
+  "3:4": "3:4",
+  "5:4": "5:4",
+  "4:5": "4:5",
+  "16:9": "16:9",
+  "9:16": "9:16",
+  "21:9": "21:9",
   "1280:720": "16:9",
   "720:1280": "9:16",
   "1104:832": "4:3",
@@ -169,7 +182,7 @@ export function StudioShell({ mode }: { mode: StudioMode }) {
   const chooseModel = (model: UiModel) => {
     setModelId(model.id);
     setRatio(model.supportedAspectRatios?.[0] ?? "1:1");
-    setResolution(model.supportedResolutions?.includes("2k") ? "2k" : model.supportedResolutions?.[0] ?? "1440");
+    setResolution(model.supportedResolutions?.find((value) => value.toLowerCase() === "2k") ?? model.supportedResolutions?.[0] ?? "1440");
     setDuration(model.supportedDurations?.[0] ?? "5");
     setReferences([]);
     setStartImage(null);
@@ -260,7 +273,7 @@ export function StudioShell({ mode }: { mode: StudioMode }) {
       status: "pending",
       createdAt: new Date().toISOString(),
       aspectRatio: ratio,
-      summary: [ratioLabels[ratio] ?? ratio, resolution, mode === "video" ? `${duration}s` : ""].filter(Boolean),
+      summary: [ratioLabels[ratio] ?? ratio, mode !== "video" && selectedModel.capabilities.resolution ? resolution : "", mode === "video" ? `${duration}s` : ""].filter(Boolean),
     };
     setActive(record);
     setHistory(saveRecord(record));
@@ -273,8 +286,7 @@ export function StudioShell({ mode }: { mode: StudioMode }) {
       resolution,
       ...(seed ? { seed: Number(seed) } : {}),
       promptEnhancement,
-      styleReference: references[0]?.data,
-      structureReference: references[1]?.data,
+      referenceImages: references.map((reference) => reference.data),
     } : mode === "edit" ? {
       prompt: prompt.trim(),
       image: baseImage?.data,

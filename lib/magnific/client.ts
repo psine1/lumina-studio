@@ -29,17 +29,20 @@ async function request(path: string, init?: RequestInit): Promise<MagnificTask> 
 }
 
 function dimensionsForRatio(ratio: string, max = 1440) {
-  const dimensions: Record<string, { width: number; height: number }> = {
-    "1:1": { width: 1024, height: 1024 },
-    "16:9": { width: max, height: 768 },
-    "9:16": { width: 768, height: max },
-    "4:3": { width: 1280, height: 960 },
-    "3:4": { width: 960, height: 1280 },
+  const ratios: Record<string, [number, number]> = {
+    "1:1": [1, 1],
+    "16:9": [16, 9],
+    "9:16": [9, 16],
+    "4:3": [4, 3],
+    "3:4": [3, 4],
   };
-  return dimensions[ratio] ?? dimensions["1:1"];
+  const [widthRatio, heightRatio] = ratios[ratio] ?? ratios["1:1"];
+  const longSide = Math.max(256, max);
+  if (widthRatio >= heightRatio) return { width: longSide, height: Math.round(longSide * heightRatio / widthRatio) };
+  return { width: Math.round(longSide * widthRatio / heightRatio), height: longSide };
 }
 
-export async function generateImage(input: { model: string; prompt: string; aspectRatio?: string; resolution?: string; seed?: number; promptEnhancement?: boolean; styleReference?: string; structureReference?: string }) {
+export async function generateImage(input: { model: string; prompt: string; aspectRatio?: string; resolution?: string; seed?: number; promptEnhancement?: boolean; referenceImages?: string[] }) {
   const model = getModel(input.model);
   if (!model || !model.modes.includes("image")) throw new Error("UNSUPPORTED_MODEL");
   if (model.id === "mystic") {
@@ -51,12 +54,46 @@ export async function generateImage(input: { model: string; prompt: string; aspe
         resolution: input.resolution ?? "2k",
         engine: "automatic",
         filter_nsfw: true,
-        ...(input.styleReference ? { style_reference: input.styleReference } : {}),
-        ...(input.structureReference ? { structure_reference: input.structureReference } : {}),
+        ...(input.referenceImages?.[0] ? { style_reference: input.referenceImages[0] } : {}),
+        ...(input.referenceImages?.[1] ? { structure_reference: input.referenceImages[1] } : {}),
+      }),
+    });
+  }
+  if (model.id === "nano-banana-pro" || model.id === "nano-banana-pro-flash") {
+    return request(model.endpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: input.prompt,
+        aspect_ratio: input.aspectRatio ?? "1:1",
+        resolution: input.resolution ?? (model.id === "nano-banana-pro" ? "2K" : "1K"),
+        ...(model.id === "nano-banana-pro-flash" ? { use_google_search_tool: false } : {}),
+      }),
+    });
+  }
+  if (model.id === "seedream-4-5") {
+    return request(model.endpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: input.prompt,
+        aspect_ratio: input.aspectRatio ?? "square_1_1",
+        ...(input.seed !== undefined ? { seed: input.seed } : {}),
+        enable_safety_checker: true,
       }),
     });
   }
   const dimensions = dimensionsForRatio(input.aspectRatio ?? "1:1", Number(input.resolution) || 1440);
+  if (model.id === "flux-2-turbo") {
+    return request(model.endpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: input.prompt,
+        image_size: dimensions,
+        ...(input.seed !== undefined ? { seed: input.seed } : {}),
+        enable_safety_checker: true,
+        output_format: "png",
+      }),
+    });
+  }
   return request(model.endpoint, {
     method: "POST",
     body: JSON.stringify({
@@ -64,8 +101,10 @@ export async function generateImage(input: { model: string; prompt: string; aspe
       ...dimensions,
       ...(input.seed !== undefined ? { seed: input.seed } : {}),
       prompt_upsampling: Boolean(input.promptEnhancement),
-      ...(input.styleReference ? { input_image: input.styleReference } : {}),
-      ...(input.structureReference ? { input_image_2: input.structureReference } : {}),
+      ...(input.referenceImages?.[0] ? { input_image: input.referenceImages[0] } : {}),
+      ...(input.referenceImages?.[1] ? { input_image_2: input.referenceImages[1] } : {}),
+      ...(input.referenceImages?.[2] ? { input_image_3: input.referenceImages[2] } : {}),
+      ...(input.referenceImages?.[3] ? { input_image_4: input.referenceImages[3] } : {}),
     }),
   });
 }
@@ -78,7 +117,7 @@ export async function editImage(input: { prompt: string; image: string; aspectRa
     body: JSON.stringify({
       prompt: input.prompt,
       input_image: input.image,
-      ...dimensionsForRatio(input.aspectRatio ?? "1:1"),
+      ...dimensionsForRatio(input.aspectRatio ?? "1:1", 1024),
       ...(input.seed !== undefined ? { seed: input.seed } : {}),
       prompt_upsampling: Boolean(input.promptEnhancement),
     }),
@@ -92,6 +131,12 @@ export async function generateVideo(input: { model: string; prompt: string; aspe
     return request(model.endpoint, {
       method: "POST",
       body: JSON.stringify({ duration: input.duration ?? "5", image: input.startImage, ...(input.endImage ? { image_tail: input.endImage } : {}), prompt: input.prompt }),
+    });
+  }
+  if (model.id === "kling-2-6-pro") {
+    return request(model.endpoint, {
+      method: "POST",
+      body: JSON.stringify({ prompt: input.prompt, duration: input.duration ?? "5", aspect_ratio: input.aspectRatio ?? "widescreen_16_9", generate_audio: true }),
     });
   }
   return request(model.endpoint, {

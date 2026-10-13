@@ -3,14 +3,13 @@ import { z } from "zod";
 import { generateImage } from "@/lib/magnific/client";
 
 const schema = z.object({
-  model: z.enum(["mystic", "flux-2-pro"]),
+  model: z.enum(["mystic", "nano-banana-pro", "nano-banana-pro-flash", "flux-2-pro", "flux-2-turbo", "seedream-4-5"]),
   prompt: z.string().trim().min(3).max(5000),
   aspectRatio: z.string().optional(),
   resolution: z.string().optional(),
   seed: z.number().int().min(0).max(4294967295).optional(),
   promptEnhancement: z.boolean().optional(),
-  styleReference: z.string().max(15_000_000).optional(),
-  structureReference: z.string().max(15_000_000).optional(),
+  referenceImages: z.array(z.string().max(15_000_000)).max(4).optional(),
 });
 
 export async function POST(request: Request) {
