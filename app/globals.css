@@ -78,6 +78,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .panel-heading h1, .history-header h1 { margin: 0; font-size: 1.55rem; line-height: 1.15; letter-spacing: -.035em; }
 .panel-heading p, .history-header p { max-width: 32ch; margin: 9px 0 0; color: #858a94; font-size: .88rem; line-height: 1.5; }
 .field-section { margin-top: 22px; }
+.model-capability-note { margin: 14px 0 0; padding: 10px 12px; color: #858b95; border: 1px solid #292d34; border-radius: 10px; background: #15171b; font-size: .72rem; line-height: 1.45; }
 .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
 .field-label, .field-label-row > label { display: block; margin-bottom: 9px; color: #9da2ac; font-size: .69rem; font-weight: 750; letter-spacing: .11em; }
 .field-label-row .field-label { margin: 0; }

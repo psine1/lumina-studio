@@ -3,9 +3,11 @@ import { z } from "zod";
 import { editImage } from "@/lib/magnific/client";
 
 const schema = z.object({
+  model: z.enum(["nano-banana-pro", "nano-banana-pro-flash", "flux-kontext-pro", "flux-2-pro"]),
   prompt: z.string().trim().min(3).max(5000),
   image: z.string().min(20).max(15_000_000),
   aspectRatio: z.string().optional(),
+  resolution: z.string().optional(),
   seed: z.number().int().min(0).max(4294967295).optional(),
   promptEnhancement: z.boolean().optional(),
 });

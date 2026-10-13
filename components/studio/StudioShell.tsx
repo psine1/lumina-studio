@@ -55,6 +55,7 @@ const navItems = [
 ];
 
 const ratioLabels: Record<string, string> = {
+  auto: "Automática",
   square_1_1: "1:1",
   widescreen_16_9: "16:9",
   social_story_9_16: "9:16",
@@ -63,6 +64,9 @@ const ratioLabels: Record<string, string> = {
   portrait_2_3: "2:3",
   standard_3_2: "3:2",
   cinematic_21_9: "21:9",
+  horizontal_2_1: "2:1",
+  vertical_1_2: "1:2",
+  social_post_4_5: "4:5",
   "1:1": "1:1",
   "2:3": "2:3",
   "3:2": "3:2",
@@ -144,6 +148,8 @@ export function StudioShell({ mode }: { mode: StudioMode }) {
   const filteredModels = availableModels.filter((model) => `${model.label} ${model.provider} ${model.badges.join(" ")}`.toLowerCase().includes(modelSearch.toLowerCase()));
 
   useEffect(() => {
+    // The persisted browser history is an external store synchronized after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHistory(loadHistory());
     fetch("/api/models")
       .then((response) => response.ok ? response.json() as Promise<{ models: UiModel[] }> : Promise.reject(new Error("Models unavailable")))
@@ -153,6 +159,8 @@ export function StudioShell({ mode }: { mode: StudioMode }) {
 
   useEffect(() => {
     const initial = mode === "video" ? "runway-4-5" : mode === "edit" ? "flux-2-pro" : "mystic";
+    // Route transitions reuse this shell, so reset the controls for the new mode.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setModelId(initial);
     setRatio(mode === "video" ? "1280:720" : mode === "edit" ? "1:1" : "square_1_1");
     setError("");
@@ -181,7 +189,8 @@ export function StudioShell({ mode }: { mode: StudioMode }) {
 
   const chooseModel = (model: UiModel) => {
     setModelId(model.id);
-    setRatio(model.supportedAspectRatios?.[0] ?? "1:1");
+    const ratios = model.supportedAspectRatios ?? [];
+    setRatio(mode === "edit" && ratios.includes("auto") ? "auto" : ratios.find((value) => value !== "auto") ?? "1:1");
     setResolution(model.supportedResolutions?.find((value) => value.toLowerCase() === "2k") ?? model.supportedResolutions?.[0] ?? "1440");
     setDuration(model.supportedDurations?.[0] ?? "5");
     setReferences([]);
@@ -288,9 +297,11 @@ export function StudioShell({ mode }: { mode: StudioMode }) {
       promptEnhancement,
       referenceImages: references.map((reference) => reference.data),
     } : mode === "edit" ? {
+      model: selectedModel.id,
       prompt: prompt.trim(),
       image: baseImage?.data,
       aspectRatio: ratio,
+      resolution,
       ...(seed ? { seed: Number(seed) } : {}),
       promptEnhancement,
     } : {
@@ -381,12 +392,14 @@ export function StudioShell({ mode }: { mode: StudioMode }) {
                 {references.map((asset, index) => (
                   <div className="reference-preview" key={`${asset.name}-${index}`} style={{ backgroundImage: `url(${asset.preview})` }}>
                     <button aria-label="Quitar referencia" type="button" onClick={() => setReferences((items) => items.filter((_, itemIndex) => itemIndex !== index))}><X size={13} /></button>
-                    <span>{index === 0 ? "Estilo" : "Estructura"}</span>
+                    <span>{selectedModel.id === "mystic" ? (index === 0 ? "Estilo" : "Estructura") : `Referencia ${index + 1}`}</span>
                   </div>
                 ))}
                 {references.length < (selectedModel.capabilities.maxReferences ?? 0) && <UploadTile label={references.length ? "Añadir" : "Referencia"} onChange={addReference} compact />}
               </div>
             </section>
+          ) : mode === "image" ? (
+            <p className="model-capability-note">Este modelo genera solo desde texto. Para usar imágenes, elige un modelo con badge Refs.</p>
           ) : null}
 
           <section className="field-section prompt-section">

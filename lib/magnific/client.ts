@@ -3,6 +3,13 @@ import type { MagnificTask } from "@/types/generation";
 
 const API_ORIGIN = "https://api.magnific.com";
 type MagnificErrorShape = { message?: string; error?: string; detail?: string };
+type UploadSlot = {
+  upload_url: string;
+  asset_url: string;
+  headers: Record<string, string>;
+};
+type UploadResponse = { files?: UploadSlot[]; data?: { files?: UploadSlot[] } };
+type PreparedImage = { url: string; mimeType?: string };
 
 function apiKey() {
   const key = process.env.MAGNIFIC_API_KEY;
@@ -10,7 +17,7 @@ function apiKey() {
   return key;
 }
 
-async function request(path: string, init?: RequestInit): Promise<MagnificTask> {
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_ORIGIN}${path}`, {
     ...init,
     headers: {
@@ -20,12 +27,62 @@ async function request(path: string, init?: RequestInit): Promise<MagnificTask> 
     },
     cache: "no-store",
   });
-  const payload = (await response.json().catch(() => ({}))) as MagnificTask & MagnificErrorShape;
+  const payload = (await response.json().catch(() => ({}))) as T & MagnificErrorShape;
   if (!response.ok) {
     const detail = payload.message ?? payload.error ?? payload.detail ?? "Magnific rechazó la solicitud.";
     throw new Error(`MAGNIFIC_${response.status}:${detail}`);
   }
   return payload;
+}
+
+function request(path: string, init?: RequestInit) {
+  return requestJson<MagnificTask>(path, init);
+}
+
+function decodeImageDataUrl(value: string) {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([\s\S]+)$/i.exec(value);
+  if (!match) return null;
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return { mimeType: match[1].toLowerCase(), bytes: bytes.buffer };
+}
+
+async function prepareImages(values: string[]): Promise<PreparedImage[]> {
+  const prepared = values.map((value) => ({ value, decoded: decodeImageDataUrl(value) }));
+  const local = prepared.filter((item) => item.decoded);
+  if (!local.length) return values.map((url) => ({ url }));
+
+  const uploadPayload = await requestJson<UploadResponse>("/v1/ai/uploads/request-url", {
+    method: "POST",
+    body: JSON.stringify({ files: local.map((item) => ({ content_type: item.decoded!.mimeType })) }),
+  });
+  const slots = uploadPayload.files ?? uploadPayload.data?.files;
+  if (!slots || slots.length !== local.length) throw new Error("MAGNIFIC_UPLOAD:No se pudieron preparar las imágenes para Magnific.");
+
+  await Promise.all(slots.map(async (slot, index) => {
+    const response = await fetch(slot.upload_url, {
+      method: "PUT",
+      headers: slot.headers,
+      body: local[index].decoded!.bytes,
+    });
+    if (!response.ok) throw new Error(`MAGNIFIC_UPLOAD_${response.status}:No se pudo subir una imagen de referencia.`);
+  }));
+
+  let uploadIndex = 0;
+  return prepared.map((item) => {
+    if (!item.decoded) return { url: item.value };
+    const slot = slots[uploadIndex++];
+    return { url: slot.asset_url, mimeType: item.decoded.mimeType };
+  });
+}
+
+function nanoReference(image: PreparedImage, index: number) {
+  return {
+    image: image.url,
+    text: `Referencia ${index + 1}`,
+    ...(image.mimeType ? { mime_type: image.mimeType } : {}),
+  };
 }
 
 function dimensionsForRatio(ratio: string, max = 1440) {
@@ -45,6 +102,7 @@ function dimensionsForRatio(ratio: string, max = 1440) {
 export async function generateImage(input: { model: string; prompt: string; aspectRatio?: string; resolution?: string; seed?: number; promptEnhancement?: boolean; referenceImages?: string[] }) {
   const model = getModel(input.model);
   if (!model || !model.modes.includes("image")) throw new Error("UNSUPPORTED_MODEL");
+  const references = await prepareImages(input.referenceImages ?? []);
   if (model.id === "mystic") {
     return request(model.endpoint, {
       method: "POST",
@@ -54,8 +112,8 @@ export async function generateImage(input: { model: string; prompt: string; aspe
         resolution: input.resolution ?? "2k",
         engine: "automatic",
         filter_nsfw: true,
-        ...(input.referenceImages?.[0] ? { style_reference: input.referenceImages[0] } : {}),
-        ...(input.referenceImages?.[1] ? { structure_reference: input.referenceImages[1] } : {}),
+        ...(references[0] ? { style_reference: references[0].url } : {}),
+        ...(references[1] ? { structure_reference: references[1].url } : {}),
       }),
     });
   }
@@ -66,6 +124,7 @@ export async function generateImage(input: { model: string; prompt: string; aspe
         prompt: input.prompt,
         aspect_ratio: input.aspectRatio ?? "1:1",
         resolution: input.resolution ?? (model.id === "nano-banana-pro" ? "2K" : "1K"),
+        ...(references.length ? { reference_images: references.map(nanoReference) } : {}),
         ...(model.id === "nano-banana-pro-flash" ? { use_google_search_tool: false } : {}),
       }),
     });
@@ -94,6 +153,18 @@ export async function generateImage(input: { model: string; prompt: string; aspe
       }),
     });
   }
+  if (model.id === "flux-kontext-pro") {
+    return request(model.endpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: input.prompt,
+        aspect_ratio: input.aspectRatio ?? "square_1_1",
+        ...(references[0] ? { input_image: references[0].url } : {}),
+        ...(input.seed !== undefined ? { seed: input.seed } : {}),
+        prompt_upsampling: Boolean(input.promptEnhancement),
+      }),
+    });
+  }
   return request(model.endpoint, {
     method: "POST",
     body: JSON.stringify({
@@ -101,23 +172,48 @@ export async function generateImage(input: { model: string; prompt: string; aspe
       ...dimensions,
       ...(input.seed !== undefined ? { seed: input.seed } : {}),
       prompt_upsampling: Boolean(input.promptEnhancement),
-      ...(input.referenceImages?.[0] ? { input_image: input.referenceImages[0] } : {}),
-      ...(input.referenceImages?.[1] ? { input_image_2: input.referenceImages[1] } : {}),
-      ...(input.referenceImages?.[2] ? { input_image_3: input.referenceImages[2] } : {}),
-      ...(input.referenceImages?.[3] ? { input_image_4: input.referenceImages[3] } : {}),
+      ...(references[0] ? { input_image: references[0].url } : {}),
+      ...(references[1] ? { input_image_2: references[1].url } : {}),
+      ...(references[2] ? { input_image_3: references[2].url } : {}),
+      ...(references[3] ? { input_image_4: references[3].url } : {}),
     }),
   });
 }
 
-export async function editImage(input: { prompt: string; image: string; aspectRatio?: string; seed?: number; promptEnhancement?: boolean }) {
-  const model = getModel("flux-2-pro");
-  if (!model) throw new Error("UNSUPPORTED_MODEL");
+export async function editImage(input: { model: string; prompt: string; image: string; aspectRatio?: string; resolution?: string; seed?: number; promptEnhancement?: boolean }) {
+  const model = getModel(input.model);
+  if (!model || !model.modes.includes("edit")) throw new Error("UNSUPPORTED_MODEL");
+  const [image] = await prepareImages([input.image]);
+  if (model.id === "nano-banana-pro" || model.id === "nano-banana-pro-flash") {
+    return request(model.endpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: input.prompt,
+        reference_images: [nanoReference(image, 0)],
+        aspect_ratio: input.aspectRatio ?? "auto",
+        resolution: input.resolution ?? (model.id === "nano-banana-pro" ? "2K" : "1K"),
+        ...(model.id === "nano-banana-pro-flash" ? { use_google_search_tool: false } : {}),
+      }),
+    });
+  }
+  if (model.id === "flux-kontext-pro") {
+    return request(model.endpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: input.prompt,
+        input_image: image.url,
+        aspect_ratio: input.aspectRatio ?? "square_1_1",
+        ...(input.seed !== undefined ? { seed: input.seed } : {}),
+        prompt_upsampling: Boolean(input.promptEnhancement),
+      }),
+    });
+  }
   return request(model.endpoint, {
     method: "POST",
     body: JSON.stringify({
       prompt: input.prompt,
-      input_image: input.image,
-      ...dimensionsForRatio(input.aspectRatio ?? "1:1", 1024),
+      input_image: image.url,
+      ...dimensionsForRatio(input.aspectRatio ?? "1:1", Number(input.resolution) || 1024),
       ...(input.seed !== undefined ? { seed: input.seed } : {}),
       prompt_upsampling: Boolean(input.promptEnhancement),
     }),
