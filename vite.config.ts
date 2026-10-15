@@ -52,6 +52,11 @@ export default defineConfig(async ({ command }) => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    // The router shim imports navigation lazily. Pre-bundle it before the first
+    // click so discovering Social Studio does not invalidate the browser cache.
+    environments: {
+      client: { optimizeDeps: { include: ["next/link", "next/navigation", "zod"] } },
+    },
     server: {
       ...(managedLinux
         ? { host: "0.0.0.0", allowedHosts: ["terminal.local"] }

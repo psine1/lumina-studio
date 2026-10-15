@@ -456,6 +456,7 @@ function StudioNav({ mode }: { mode: StudioMode }) {
           const Icon = item.icon;
           return <Link href={item.href} key={item.mode} aria-current={mode === item.mode ? "page" : undefined} className={mode === item.mode ? "active" : ""}><Icon size={20} /><span>{item.label}</span></Link>;
         })}
+        <Link href="/social"><Layers3 size={20} /><span>Social</span></Link>
       </div>
       <button className="nav-avatar" type="button" title="Estudio personal">TU</button>
     </nav>

@@ -2,7 +2,7 @@ import { getModel } from "@/lib/magnific/models";
 import type { MagnificTask } from "@/types/generation";
 
 const API_ORIGIN = "https://api.magnific.com";
-type MagnificErrorShape = { message?: string; error?: string; detail?: string };
+type MagnificErrorShape = { message?: string; error?: string; detail?: string; invalid_params?: { name?: string; reason?: string }[] };
 type UploadSlot = {
   upload_url: string;
   asset_url: string;
@@ -30,7 +30,8 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const payload = (await response.json().catch(() => ({}))) as T & MagnificErrorShape;
   if (!response.ok) {
     const detail = payload.message ?? payload.error ?? payload.detail ?? "Magnific rechazó la solicitud.";
-    throw new Error(`MAGNIFIC_${response.status}:${detail}`);
+    const fields = Array.isArray(payload.invalid_params) ? payload.invalid_params.map((item) => `${item.name ?? "campo"}: ${item.reason ?? "inválido"}`).join("; ") : "";
+    throw new Error(`MAGNIFIC_${response.status}:${detail}${fields ? ` (${fields})` : ""}`);
   }
   return payload;
 }
@@ -51,7 +52,12 @@ function decodeImageDataUrl(value: string) {
 async function prepareImages(values: string[]): Promise<PreparedImage[]> {
   const prepared = values.map((value) => ({ value, decoded: decodeImageDataUrl(value) }));
   const local = prepared.filter((item) => item.decoded);
-  if (!local.length) return values.map((url) => ({ url }));
+  const remote = (url: string): PreparedImage => {
+    const path = url.split("?")[0].toLowerCase();
+    const mimeType = /\.jpe?g$/.test(path) ? "image/jpeg" : /\.png$/.test(path) ? "image/png" : /\.webp$/.test(path) ? "image/webp" : undefined;
+    return { url, ...(mimeType ? { mimeType } : {}) };
+  };
+  if (!local.length) return values.map(remote);
 
   const uploadPayload = await requestJson<UploadResponse>("/v1/ai/uploads/request-url", {
     method: "POST",
@@ -71,7 +77,7 @@ async function prepareImages(values: string[]): Promise<PreparedImage[]> {
 
   let uploadIndex = 0;
   return prepared.map((item) => {
-    if (!item.decoded) return { url: item.value };
+    if (!item.decoded) return remote(item.value);
     const slot = slots[uploadIndex++];
     return { url: slot.asset_url, mimeType: item.decoded.mimeType };
   });

@@ -1,5 +1,13 @@
 # Luma Studio
 
+## Social Studio
+
+Nueva sección `/social`: catálogo Shopify de solo lectura, Brand Kit SADAELS, tres direcciones editoriales y generación de posteos con Magnific a partir de la foto real y el brief. Cada clic genera una sola imagen con Nano Banana Pro Flash en 1K; texto y logo quedan editables, y se compara con el original antes de descargar PNG/JPG. Los proyectos se guardan en el navegador y pueden descargarse/importarse como JSON. No publica ni sube imágenes a Shopify o redes sociales.
+
+Configura `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_CLIENT_ID` y `SHOPIFY_CLIENT_SECRET` en `.env.local`; también admite `SHOPIFY_ADMIN_ACCESS_TOKEN`. La versión por defecto es `2026-10`. No se necesita un proveedor de IA de texto para los presets.
+
+Ver [arquitectura, configuración y límites de Social Studio](docs/social-studio.md).
+
 Aplicación web privada para generar imágenes, editar una imagen con prompt y crear videos mediante la API oficial de Magnific. La interfaz prioriza un flujo de estudio: configuración a la izquierda, selector de modelos por capacidades y resultados en el mismo lienzo.
 
 ## Inicio local
