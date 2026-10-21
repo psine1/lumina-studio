@@ -53,7 +53,13 @@ export const logoStyleSchema = z.object({
   x: z.number().min(0).max(1).default(.78), y: z.number().min(0).max(1).default(.05),
   width: z.number().min(.03).max(.7).default(.15), opacity: z.number().min(0).max(1).default(1),
 });
+export const overlayLayerSchema = z.discriminatedUnion("type", [
+  z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(100), type: z.literal("text"), visible: z.boolean().default(true), text: z.string().max(160), color: z.string().regex(/^#[a-fA-F0-9]{6}$/), font: z.enum(["Arial", "Georgia", "Times New Roman"]), style: textStyleSchema }),
+  z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(100), type: z.literal("image"), visible: z.boolean().default(true), src: localImage.max(2_000_000), style: logoStyleSchema }),
+]);
+export type OverlayLayer = z.infer<typeof overlayLayerSchema>;
 export const compositionSchema = z.object({
+  layers: z.array(overlayLayerSchema).max(40).refine((layers) => new Set(layers.map((layer) => layer.id)).size === layers.length, "Las capas deben tener identificadores únicos.").optional(),
   subjectMask: localImage.max(15_000_000).nullable().default(null),
   subjectMaskKey: z.string().max(100).default(""),
   format: z.enum(["square", "portrait", "story"]), layout: z.enum(["editorial", "detail", "minimal"]),

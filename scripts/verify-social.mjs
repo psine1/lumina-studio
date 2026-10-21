@@ -18,6 +18,8 @@ async function moduleUrl(path) {
   return url;
 }
 const schema = await import(await moduleUrl(new URL("../lib/social/schema.ts", import.meta.url)));
+const { compositionLayers, layerComposition, patchCompositionLayer, reorderLayer } = await import(await moduleUrl(new URL("../lib/social/layers.ts", import.meta.url)));
+const { scaleLayerFromCorner } = await import(await moduleUrl(new URL("../lib/social/resize.ts", import.meta.url)));
 const { zoomViewport } = await import(await moduleUrl(new URL("../lib/social/viewport.ts", import.meta.url)));
 const anchor = { x: 170, y: -90 }, panBefore = { x: 40, y: 25 }, scaleBefore = .5;
 const zoomed = zoomViewport(scaleBefore, panBefore, 2, anchor);
@@ -201,6 +203,65 @@ assert.deepEqual(wrapText(context, "AB\nCD", 200, 0), ["AB", "CD"]);
 const atEdge = await renderComposition(canvas, { ...styled, textStyle: { ...styled.textStyle, x: 1, y: 1 }, logoStyle: { ...styled.logoStyle, x: 1, y: 1 } }, styledBrand);
 assert(atEdge.text.x + atEdge.text.width <= canvas.width); assert(atEdge.text.y + atEdge.text.height <= canvas.height);
 assert(atEdge.logo.x + atEdge.logo.width <= canvas.width); assert(atEdge.logo.y + atEdge.logo.height <= canvas.height);
+
+// Multiple independent overlays use the same ordered renderer for preview and export.
+const legacyLayers = compositionLayers(styled, styledBrand);
+assert.equal(legacyLayers.length, 2); assert.equal(legacyLayers[0].text, styled.text); assert.equal(legacyLayers[1].src, styledBrand.logo);
+const multiLayers = [
+  schema.overlayLayerSchema.parse({ id: "text-a", name: "Title", type: "text", text: "First", visible: true, color: "#ffffff", font: "Arial", style: {} }),
+  schema.overlayLayerSchema.parse({ id: "image-a", name: "Image", type: "image", src: "data:image/png;base64,aW1hZ2Ux", visible: true, style: {} }),
+  schema.overlayLayerSchema.parse({ id: "text-b", name: "Subtitle", type: "text", text: "Second", visible: true, color: "#eeeeee", font: "Georgia", style: { x: .2, y: .3 } }),
+  schema.overlayLayerSchema.parse({ id: "image-hidden", name: "Hidden", type: "image", src: "data:image/png;base64,aGlkZGVu", visible: false, style: {} }),
+];
+const multiComposition = schema.compositionSchema.parse({ ...styled, subjectMask: null, layers: multiLayers });
+const resizeText = schema.overlayLayerSchema.parse({ ...multiLayers[0], style: { x: .3, y: .3, width: .3, fontSize: 60, letterSpacing: 2, lineHeight: 1.4 } });
+const resizeImage = schema.overlayLayerSchema.parse({ ...multiLayers[1], style: { x: .3, y: .3, width: .3 } });
+const resizeBox = { x: 300, y: 300, width: 300, height: 120 };
+for (const corner of ["nw", "ne", "sw", "se"]) {
+  const sx = corner.endsWith("e") ? 1 : -1, sy = corner.startsWith("s") ? 1 : -1;
+  for (const original of [resizeText, resizeImage]) {
+    const resized = scaleLayerFromCorner(original, resizeBox, corner, sx * 150, sy * 60, 1000, 1000);
+    schema.overlayLayerSchema.parse(resized);
+    const factor = resized.style.width / original.style.width;
+    assert(Math.abs(factor - 1.5) < 1e-9);
+    assert(Math.abs(resized.style.x * 1000 + (sx < 0 ? resizeBox.width * factor : 0) - (resizeBox.x + (sx < 0 ? resizeBox.width : 0))) < 1e-9, "The opposite horizontal corner stays anchored");
+    assert(Math.abs(resized.style.y * 1000 + (sy < 0 ? resizeBox.height * factor : 0) - (resizeBox.y + (sy < 0 ? resizeBox.height : 0))) < 1e-9, "The opposite vertical corner stays anchored");
+    if (resized.type === "text") { assert.equal(resized.style.fontSize, 90); assert.equal(resized.style.letterSpacing, 3); assert.equal(resized.style.lineHeight, 1.4); }
+  }
+}
+const oversized = scaleLayerFromCorner(resizeText, resizeBox, "se", 10000, 10000, 1000, 1000);
+assert(oversized.style.x + oversized.style.width <= 1 + 1e-9); assert(oversized.style.fontSize <= 180);
+const smallest = scaleLayerFromCorner(resizeText, resizeBox, "se", -10000, -10000, 1000, 1000);
+assert(smallest.style.fontSize >= 12); assert(smallest.style.width >= .1);
+assert.deepEqual(resizeText.style, schema.textStyleSchema.parse({ x: .3, y: .3, width: .3, fontSize: 60, letterSpacing: 2, lineHeight: 1.4 }), "Resizing never mutates the starting layer");
+assert.equal(compositionLayers(multiComposition, styledBrand).length, 4, "Explicit layers never duplicate legacy overlays");
+const events = [];
+const multiContext = { ...context, fillText(value) { events.push(value); }, drawImage(image) { events.push(image.url || "canvas"); } };
+const multiCanvas = { ...canvas, getContext: () => multiContext };
+let multiGeometry = await renderComposition(multiCanvas, multiComposition, styledBrand);
+assert.deepEqual(events.slice(-3), ["First", multiLayers[1].src, "Second"], "Text and images share the stacking order");
+assert.deepEqual(multiGeometry.layers.map((layer) => layer.id), ["text-a", "image-a", "text-b"]);
+assert(!events.includes(multiLayers[3].src), "Hidden layers are excluded from the exported artwork and hit targets");
+const patched = patchCompositionLayer(multiComposition, styledBrand, "text-b", { text: "Changed", textStyle: { ...multiLayers[2].style, x: .45 } });
+assert.equal(patched.layers[0].text, "First"); assert.equal(patched.layers[2].text, "Changed"); assert.equal(patched.layers[2].style.x, .45);
+assert.equal(multiLayers[2].text, "Second", "Editing does not mutate another state snapshot");
+assert.equal(layerComposition(multiComposition, multiLayers[2]).text, "Second");
+assert.equal(layerComposition(multiComposition, multiLayers[2]).layers, undefined);
+assert.equal(patchCompositionLayer(multiComposition, styledBrand, "image-a", { subjectMaskKey: "shared" }).subjectMaskKey, "shared");
+const reordered = reorderLayer(multiLayers, "text-a", "up");
+assert.deepEqual(reordered.map((layer) => layer.id), ["image-a", "text-a", "text-b", "image-hidden"]);
+assert.deepEqual(reorderLayer(multiLayers, "text-a", "down"), multiLayers);
+const removedAll = { ...multiComposition, layers: [] };
+assert.deepEqual(compositionLayers(removedAll, styledBrand), []);
+assert.equal((await renderComposition(multiCanvas, removedAll, styledBrand)).layers.length, 0, "Deleted legacy overlays do not reappear");
+const overflowLayers = [...multiLayers]; overflowLayers[2] = { ...multiLayers[2], text: "Line\n".repeat(25), style: { ...multiLayers[2].style, fontSize: 180 } };
+assert.equal((await renderComposition(multiCanvas, { ...multiComposition, layers: overflowLayers }, styledBrand)).textOverflow, true, "Overflow is checked on every text layer");
+assert.deepEqual(schema.compositionSchema.parse(JSON.parse(JSON.stringify(multiComposition))).layers, multiLayers);
+await downloadComposition(multiComposition, styledBrand, "Multiple layers", "png");
+assert.equal(downloadName, "Multiple-layers.png");
+assert(textDraws.some(([value]) => value === "First") && textDraws.some(([value]) => value === "Second"), "The PNG export includes all visible text layers");
+assert.equal(schema.compositionSchema.safeParse({ ...multiComposition, layers: [multiLayers[0], multiLayers[0]] }).success, false);
+assert.equal(schema.overlayLayerSchema.safeParse({ ...multiLayers[1], src: "https://tracker.example/image.png" }).success, false);
 delete globalThis.document;
 
 const { POST } = await import(await moduleUrl(new URL("../app/api/social/generations/route.ts", import.meta.url)));
@@ -325,6 +386,9 @@ assert(!local.brands.some((item) => item.id === SADAELS.id), "Deleted kits are n
 assert.equal(local.projects[0].brand.id, SADAELS.id, "Deleting a kit does not alter saved projects");
 await assert.rejects(storage.deleteStoredBrand(daylightKit.id));
 assert.equal((await storage.loadSocialStorage()).brands.length, 1, "Keep the last usable kit");
+const multiProject = schema.projectSchema.parse({ ...transferredProject, id: "multiple-layer-project", composition: multiComposition });
+await storage.saveStoredProject(multiProject);
+assert.deepEqual((await storage.loadSocialStorage()).projects.find((item) => item.id === multiProject.id).composition.layers, multiLayers, "All layers survive IndexedDB save and reopen");
 legacyData.set("luma-social-projects-v1", "invalid json");
 await assert.rejects(storage.loadSocialStorage()); assert.equal(legacyData.get("luma-social-projects-v1"), "invalid json");
 console.log("Social Studio: IndexedDB migration, >5MB save/reopen, atomic failure recovery, deletion, brand/pending persistence, generation, read-only Shopify and export checks passed. No live API calls.");

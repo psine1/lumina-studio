@@ -1,7 +1,7 @@
 import { logoStyleSchema, textStyleSchema, type Composition } from "./schema";
 
 export type LayerBox = { x: number; y: number; width: number; height: number };
-export type OverlayGeometry = { text: LayerBox | null; logo: LayerBox | null; textOverflow: boolean };
+export type OverlayGeometry = { text: LayerBox | null; logo: LayerBox | null; textOverflow: boolean; layers?: { id: string; name: string; type: "text" | "image"; box: LayerBox }[] };
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
 
 export function alignLayerBox(box: LayerBox, width: number, height: number, axis: "horizontal" | "vertical", alignment: "start" | "center" | "end") {

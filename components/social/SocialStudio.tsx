@@ -231,7 +231,7 @@ export function SocialStudio() {
   }
   function brandSelector(inEditor = false) {
     const selected = inEditor && project ? project.brand : brand;
-    return <label>Brand Kit<select disabled={!storageReady || busy || !!generation} value={selected.id} onChange={(event) => selectBrand(event.target.value, inEditor)}>{!brands.some((item) => item.id === selected.id) && <option value={selected.id}>{selected.name} (del proyecto)</option>}{brands.map((item, index) => <option key={item.id} value={item.id}>{index + 1}. {item.name}</option>)}</select><span className="post-field-hint">{inEditor ? "Texto y logo usan este kit. Para cambiar la escena, generá otra versión." : "Elegí la identidad visual para este posteo."}</span></label>;
+    return <label>Brand Kit<select disabled={!storageReady || busy || !!generation} value={selected.id} onChange={(event) => selectBrand(event.target.value, inEditor)}>{!brands.some((item) => item.id === selected.id) && <option value={selected.id}>{selected.name} (del proyecto)</option>}{brands.map((item, index) => <option key={item.id} value={item.id}>{index + 1}. {item.name}</option>)}</select><span className="post-field-hint">{inEditor ? "Este kit guía la próxima generación. Las capas se editan por separado." : "Elegí la identidad visual para este posteo."}</span></label>;
   }
   async function generatePost(value = project) {
     if (!value || generationLock.current || generation) return;
@@ -261,7 +261,7 @@ export function SocialStudio() {
   }
   async function importProject(file: File) {
     try {
-      if (file.size > 15_000_000) throw new Error("El proyecto supera 15 MB.");
+      if (file.size > 150_000_000) throw new Error("El proyecto supera 150 MB.");
       const value = projectSchema.parse(JSON.parse(await file.text()));
       setProject({ ...value, id: crypto.randomUUID() }); setProduct(value.product); setImage(value.composition.productImage); setTab("creative"); setNotice("Proyecto importado como una nueva copia. Guardalo para conservarlo en este navegador.");
     } catch { setError("El archivo no es un proyecto Social Studio válido."); }

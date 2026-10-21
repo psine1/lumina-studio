@@ -1,4 +1,5 @@
 import { formats, type Brand, type Composition } from "./schema";
+import { compositionLayers, layerComposition } from "./layers";
 import { drawTextLayer, layoutLogo, type OverlayGeometry } from "./overlays";
 
 export function subjectMaskKey(composition: Composition) {
@@ -39,10 +40,11 @@ export function imagePlacement(imageWidth: number, imageHeight: number, width: n
 }
 
 export async function renderComposition(canvas: HTMLCanvasElement, composition: Composition, brand: Brand, cancelled = () => false) {
-  const [product, background, logo, mask] = await Promise.all([
+  const layers = compositionLayers(composition, brand).filter((layer) => layer.visible);
+  const [product, background, assets, mask] = await Promise.all([
     loadImage(composition.generatedImage || mediaUrl(composition.productImage)),
     composition.backgroundImage ? loadImage(composition.backgroundImage) : null,
-    composition.logoVisible && brand.logo ? loadImage(brand.logo) : null,
+    Promise.all(layers.map((layer) => layer.type === "image" ? loadImage(layer.src) : null)),
     hasSubjectMask(composition) ? loadImage(composition.subjectMask!) : null,
   ]);
   if (cancelled()) return;
@@ -64,27 +66,36 @@ export async function renderComposition(canvas: HTMLCanvasElement, composition: 
   else contain(ctx, product, width * (frame.x + frame.w / 2) - boxW / 2, height * (frame.y + frame.h / 2) - boxH / 2, boxW, boxH);
   const base = mask ? document.createElement("canvas") : null;
   if (base) { base.width = width; base.height = height; base.getContext("2d")!.drawImage(canvas, 0, 0); }
-  const logoBox = logo ? layoutLogo(composition, width, height, logo.naturalWidth, logo.naturalHeight) : null;
-  const drawLogo = () => { if (logo && logoBox) {
-    ctx.save(); ctx.globalAlpha = composition.logoStyle?.opacity ?? 1;
-    ctx.globalCompositeOperation = composition.logoStyle?.blendMode ?? "source-over";
-    ctx.drawImage(logo, logoBox.x, logoBox.y, logoBox.width, logoBox.height); ctx.restore();
-  } };
-  const behindText = Boolean(mask && composition.textStyle?.behindSubject);
-  const behindLogo = Boolean(mask && composition.logoStyle?.behindSubject);
-  let text;
-  if (behindText) text = drawTextLayer(ctx, composition, width, height);
-  if (behindLogo) drawLogo();
-  if (base && mask && (behindText || behindLogo)) {
+  const geometry: NonNullable<OverlayGeometry["layers"]> = [];
+  let textOverflow = false;
+  const drawLayer = (layer: typeof layers[number], index: number) => {
+    const adapted = layerComposition(composition, layer);
+    if (layer.type === "text") {
+      const layout = drawTextLayer(ctx, adapted, width, height);
+      if (layer.text) geometry.push({ id: layer.id, name: layer.name, type: "text", box: layout.box });
+      textOverflow ||= Boolean(layer.text) && layout.overflow;
+    } else {
+      const asset = assets[index];
+      if (!asset) return;
+      const box = layoutLogo(adapted, width, height, asset.naturalWidth, asset.naturalHeight);
+      ctx.save(); ctx.globalAlpha = layer.style.opacity; ctx.globalCompositeOperation = layer.style.blendMode;
+      ctx.drawImage(asset, box.x, box.y, box.width, box.height); ctx.restore();
+      geometry.push({ id: layer.id, name: layer.name, type: "image", box });
+    }
+  };
+  const behind = (layer: typeof layers[number]) => Boolean(mask && layer.style.behindSubject);
+  layers.forEach((layer, index) => { if (behind(layer)) drawLayer(layer, index); });
+  if (base && mask && layers.some(behind)) {
     const foreground = base.getContext("2d")!;
     foreground.globalCompositeOperation = "destination-in";
     foreground.drawImage(mask, 0, 0, width, height);
     ctx.drawImage(base, 0, 0);
   }
-  if (!behindText) text = drawTextLayer(ctx, composition, width, height);
-  if (!behindLogo) drawLogo();
-  text ??= drawTextLayer(ctx, { ...composition, text: "" }, width, height);
-  return { text: composition.text ? text.box : null, logo: logoBox, textOverflow: Boolean(composition.text) && text.overflow } satisfies OverlayGeometry;
+  layers.forEach((layer, index) => { if (!behind(layer)) drawLayer(layer, index); });
+  // Hit targets follow the layer stack even when some elements are behind the subject.
+  geometry.sort((a, b) => layers.findIndex((layer) => layer.id === a.id) - layers.findIndex((layer) => layer.id === b.id));
+  return { text: geometry.find((layer) => layer.type === "text")?.box || null, logo: geometry.find((layer) => layer.type === "image")?.box || null, textOverflow, layers: geometry } satisfies OverlayGeometry;
+
 }
 
 export async function downloadComposition(composition: Composition, brand: Brand, name: string, kind: "png" | "jpeg") {

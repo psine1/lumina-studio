@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Hand, Maximize2, Minimize2, MousePointer2, ZoomIn, ZoomOut } from "lucide-react";
 import { zoomViewport } from "@/lib/social/viewport";
 
-type Props = { width: number; height: number; children: ReactNode };
+type Props = { width: number; height: number; children: ReactNode; toolbarActions?: ReactNode; floatingPanel?: ReactNode };
 
-export function CanvasViewport({ width, height, children }: Props) {
+export function CanvasViewport({ width, height, children, toolbarActions, floatingPanel }: Props) {
   const viewport = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const [size, setSize] = useState({ width: 800, height: 550 });
@@ -34,6 +34,7 @@ export function CanvasViewport({ width, height, children }: Props) {
     const observer = new ResizeObserver(([entry]) => setSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
     observer.observe(element);
     function wheel(event: WheelEvent) {
+      if ((event.target as HTMLElement).closest?.("[data-viewport-ui]")) return;
       if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
       const bounds = element!.getBoundingClientRect();
@@ -65,6 +66,7 @@ export function CanvasViewport({ width, height, children }: Props) {
       <button type="button" aria-label="Acercar" disabled={scale >= 4} onClick={() => adjustZoom(scale * 1.25)}><ZoomIn size={15} /></button>
       <button type="button" onClick={reset}>Ajustar</button>
       <button type="button" aria-label={expanded ? "Cerrar vista ampliada" : "Ampliar lienzo"} aria-pressed={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{expanded ? "Cerrar" : "Ampliar"}</button>
+      {toolbarActions && <div className="post-viewport-actions">{toolbarActions}</div>}
     </div>
     <div ref={viewport} className={`post-viewport ${moving ? "hand" : ""} ${dragging ? "dragging" : ""}`} tabIndex={0} aria-label="Lienzo. Usá Mano para desplazar, Control o Comando más rueda para zoom, y Espacio para activar la mano temporalmente."
       onBlur={() => setSpace(false)}
@@ -76,12 +78,14 @@ export function CanvasViewport({ width, height, children }: Props) {
         if (event.key === "0") { event.preventDefault(); reset(); }
       }} onKeyUp={(event) => { if (event.code === "Space") { event.preventDefault(); setSpace(false); } }}
       onPointerDownCapture={(event) => {
+        if ((event.target as HTMLElement).closest("[data-viewport-ui]")) return;
         if ((!moving && event.button !== 1) || (event.button !== 0 && event.button !== 1)) return;
         event.preventDefault(); event.stopPropagation(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId);
         drag.current = { x: event.clientX, y: event.clientY, left: pan.x, top: pan.y }; setDragging(true);
       }} onPointerMove={(event) => { if (drag.current) setPan({ x: drag.current.left + event.clientX - drag.current.x, y: drag.current.top + event.clientY - drag.current.y }); }}
       onPointerUp={() => { drag.current = null; setDragging(false); }} onPointerCancel={() => { drag.current = null; setDragging(false); }} onLostPointerCapture={() => { drag.current = null; setDragging(false); }}>
-      <div className="post-canvas-position" style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}><div className="post-canvas-content" style={{ width, height, transform: `scale(${scale})` }}>{children}</div></div>
+      <div className="post-canvas-position" style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}><div className="post-canvas-content" style={{ width, height, transform: `scale(${scale})`, "--view-scale": scale } as CSSProperties}>{children}</div></div>
+      {floatingPanel}
     </div>
     <div className="post-viewport-hint">{moving ? "Arrastrá para mover la vista" : "Ctrl / ⌘ + rueda: zoom · Mano o Espacio: mover · 0: ajustar"}</div>
   </div>;
