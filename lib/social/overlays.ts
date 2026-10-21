@@ -61,6 +61,7 @@ export function drawTextLayer(ctx: CanvasRenderingContext2D, composition: Compos
   const layout = layoutText(ctx, composition, width, height);
   const { style, lines, lineStep, box } = layout;
   ctx.save();
+  ctx.globalCompositeOperation = style.blendMode;
   ctx.fillStyle = composition.textColor; ctx.textBaseline = "top"; ctx.textAlign = "left"; ctx.globalAlpha = style.opacity;
   if (style.shadow) { ctx.shadowColor = "rgba(0,0,0,.8)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 2; }
   lines.forEach((line, index) => {

@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { editImage } from "@/lib/magnific/client";
+import { generateImage } from "@/lib/magnific/client";
 import { getProduct, ShopifyError } from "@/lib/shopify/client";
-import { SOCIAL_IMAGE_MODEL, socialAspectRatio, socialGenerationSchema, socialImagePrompt } from "@/lib/social/generation";
+import { referencePlan, socialAspectRatio, socialGenerationSchema, socialImagePrompt } from "@/lib/social/generation";
+import type { SocialImageModel } from "@/lib/social/schema";
 
 // Coalesce repeated clicks/network retries with the same request ID. Never retry a paid POST.
-const submissions = new Map<string, { signature: string; expires: number; task: Promise<{ taskId: string; model: typeof SOCIAL_IMAGE_MODEL }> }>();
+const submissions = new Map<string, { signature: string; expires: number; task: Promise<{ taskId: string; model: SocialImageModel; productReferenceCount: number; totalProductImages: number }> }>();
 export async function POST(request: Request) {
   try {
     const input = socialGenerationSchema.parse(await request.json());
-    const signature = JSON.stringify(input);
+    if (input.generationSettings.creativeMode === "new-model" && !input.generationSettings.targetModelImage && input.generationSettings.modelDescription.trim().length < 8) return NextResponse.json({ error: "Subí la foto del nuevo modelo o describí un modelo adulto antes de generar." }, { status: 400 });
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(input)));
+    const signature = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
     const previous = submissions.get(input.requestId);
     if (previous && previous.expires > Date.now()) {
       if (previous.signature !== signature) return NextResponse.json({ error: "Este identificador ya pertenece a otra generación." }, { status: 409 });
@@ -20,9 +23,11 @@ export async function POST(request: Request) {
     const task = (async () => {
       const product = await getProduct(input.productId);
       if (!product.images.nodes.some((image) => image.url === input.imageUrl)) throw new ShopifyError("Elegí una fotografía original de este producto.", 400);
-      const result = await editImage({ model: SOCIAL_IMAGE_MODEL, image: input.imageUrl, prompt: socialImagePrompt(input, product), aspectRatio: socialAspectRatio(input.format), resolution: "1K" });
+      const plan = referencePlan(product, input.imageUrl, input.generationSettings);
+      if (input.expectedModel && input.expectedModel !== plan.model) throw new ShopifyError("Las referencias cambiaron y requieren otro modelo. Actualizá el producto y revisá el modelo antes de generar.", 409);
+      const result = await generateImage({ model: plan.model, referenceImages: plan.referenceImages, prompt: socialImagePrompt(input, product, plan.productImages.length), aspectRatio: socialAspectRatio(input.format), resolution: "1K" });
       const id = z.string().min(1).parse(result.data?.task_id);
-      return { taskId: id, model: SOCIAL_IMAGE_MODEL };
+      return { taskId: id, model: plan.model, productReferenceCount: plan.productImages.length, totalProductImages: plan.totalProductImages };
     })();
     submissions.set(input.requestId, { signature, task, expires: Date.now() + 60 * 60_000 });
     return NextResponse.json(await task, { headers: { "Cache-Control": "no-store" } });

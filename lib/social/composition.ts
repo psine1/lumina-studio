@@ -1,6 +1,14 @@
 import { formats, type Brand, type Composition } from "./schema";
 import { drawTextLayer, layoutLogo, type OverlayGeometry } from "./overlays";
 
+export function subjectMaskKey(composition: Composition) {
+  const value = JSON.stringify([composition.generatedImage || composition.productImage, composition.format, composition.layout, composition.imageScale, composition.imageFit]);
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
+  return `${value.length}-${hash >>> 0}`;
+}
+export function hasSubjectMask(composition: Composition) { return Boolean(composition.subjectMask && composition.subjectMaskKey === subjectMaskKey(composition)); }
+
 export function mediaUrl(url: string) { return `/api/social/media?url=${encodeURIComponent(url)}`; }
 
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
@@ -31,10 +39,11 @@ export function imagePlacement(imageWidth: number, imageHeight: number, width: n
 }
 
 export async function renderComposition(canvas: HTMLCanvasElement, composition: Composition, brand: Brand, cancelled = () => false) {
-  const [product, background, logo] = await Promise.all([
+  const [product, background, logo, mask] = await Promise.all([
     loadImage(composition.generatedImage || mediaUrl(composition.productImage)),
     composition.backgroundImage ? loadImage(composition.backgroundImage) : null,
     composition.logoVisible && brand.logo ? loadImage(brand.logo) : null,
+    hasSubjectMask(composition) ? loadImage(composition.subjectMask!) : null,
   ]);
   if (cancelled()) return;
   const { width, height } = formats[composition.format];
@@ -53,12 +62,28 @@ export async function renderComposition(canvas: HTMLCanvasElement, composition: 
     ctx.drawImage(product, placement.x, placement.y, placement.width, placement.height);
   }
   else contain(ctx, product, width * (frame.x + frame.w / 2) - boxW / 2, height * (frame.y + frame.h / 2) - boxH / 2, boxW, boxH);
-  const text = drawTextLayer(ctx, composition, width, height);
+  const base = mask ? document.createElement("canvas") : null;
+  if (base) { base.width = width; base.height = height; base.getContext("2d")!.drawImage(canvas, 0, 0); }
   const logoBox = logo ? layoutLogo(composition, width, height, logo.naturalWidth, logo.naturalHeight) : null;
-  if (logo && logoBox) {
+  const drawLogo = () => { if (logo && logoBox) {
     ctx.save(); ctx.globalAlpha = composition.logoStyle?.opacity ?? 1;
+    ctx.globalCompositeOperation = composition.logoStyle?.blendMode ?? "source-over";
     ctx.drawImage(logo, logoBox.x, logoBox.y, logoBox.width, logoBox.height); ctx.restore();
+  } };
+  const behindText = Boolean(mask && composition.textStyle?.behindSubject);
+  const behindLogo = Boolean(mask && composition.logoStyle?.behindSubject);
+  let text;
+  if (behindText) text = drawTextLayer(ctx, composition, width, height);
+  if (behindLogo) drawLogo();
+  if (base && mask && (behindText || behindLogo)) {
+    const foreground = base.getContext("2d")!;
+    foreground.globalCompositeOperation = "destination-in";
+    foreground.drawImage(mask, 0, 0, width, height);
+    ctx.drawImage(base, 0, 0);
   }
+  if (!behindText) text = drawTextLayer(ctx, composition, width, height);
+  if (!behindLogo) drawLogo();
+  text ??= drawTextLayer(ctx, { ...composition, text: "" }, width, height);
   return { text: composition.text ? text.box : null, logo: logoBox, textOverflow: Boolean(composition.text) && text.overflow } satisfies OverlayGeometry;
 }
 

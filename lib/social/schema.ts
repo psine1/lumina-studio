@@ -13,7 +13,7 @@ export const shopifyImageSchema = z.object({
 export const productSchema = z.object({
   id: z.string(), title: z.string(), description: z.string(), productType: z.string(),
   status: z.string(), tags: z.array(z.string()), vendor: z.string(), handle: z.string(),
-  images: z.object({ nodes: z.array(shopifyImageSchema), pageInfo: z.object({ hasNextPage: z.boolean() }) }),
+  images: z.object({ nodes: z.array(shopifyImageSchema), pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable().optional() }) }),
   collections: z.object({ nodes: z.array(z.object({ id: z.string(), title: z.string() })), pageInfo: z.object({ hasNextPage: z.boolean() }) }),
   variants: z.object({ nodes: z.array(z.object({ id: z.string(), title: z.string(), price: z.string(), selectedOptions: z.array(z.object({ name: z.string(), value: z.string() })) })), pageInfo: z.object({ hasNextPage: z.boolean() }) }),
 });
@@ -35,7 +35,11 @@ export const conceptSchema = z.object({
   requiresImageGeneration: z.boolean(), imagePrompt: z.string().max(4000).nullable(),
 });
 export type Concept = z.infer<typeof conceptSchema>;
+export const blendModes = ["source-over", "multiply", "screen", "overlay", "darken", "lighten", "soft-light", "hard-light", "difference", "exclusion"] as const;
+export const blendModeSchema = z.enum(blendModes).default("source-over");
 export const textStyleSchema = z.object({
+  behindSubject: z.boolean().default(false),
+  blendMode: blendModeSchema,
   x: z.number().min(0).max(1).default(.09), y: z.number().min(0).max(1).default(.865),
   width: z.number().min(.1).max(1).default(.82), fontSize: z.number().min(12).max(180).default(43),
   align: z.enum(["left", "center", "right"]).default("left"),
@@ -44,10 +48,14 @@ export const textStyleSchema = z.object({
   opacity: z.number().min(0).max(1).default(1), shadow: z.boolean().default(false),
 });
 export const logoStyleSchema = z.object({
+  behindSubject: z.boolean().default(false),
+  blendMode: blendModeSchema,
   x: z.number().min(0).max(1).default(.78), y: z.number().min(0).max(1).default(.05),
   width: z.number().min(.03).max(.7).default(.15), opacity: z.number().min(0).max(1).default(1),
 });
 export const compositionSchema = z.object({
+  subjectMask: localImage.max(15_000_000).nullable().default(null),
+  subjectMaskKey: z.string().max(100).default(""),
   format: z.enum(["square", "portrait", "story"]), layout: z.enum(["editorial", "detail", "minimal"]),
   background: z.string().regex(/^#[a-fA-F0-9]{6}$/), backgroundImage: localImage.max(15_000_000).nullable(),
   productImage: shopifyMedia, text: z.string().max(160), textColor: z.string().regex(/^#[a-fA-F0-9]{6}$/),
@@ -59,10 +67,26 @@ export const compositionSchema = z.object({
   textStyle: textStyleSchema.default({}), logoStyle: logoStyleSchema.default({}),
 });
 export type Composition = z.infer<typeof compositionSchema>;
+export const creativeModeSchema = z.enum(["editorial", "garment", "new-model"]);
+export type CreativeMode = z.infer<typeof creativeModeSchema>;
+export const socialModelSchema = z.enum(["nano-banana-pro-flash", "nano-banana-pro"]);
+export type SocialImageModel = z.infer<typeof socialModelSchema>;
+export const generationSettingsSchema = z.object({
+  creativeMode: creativeModeSchema.default("editorial"),
+  referenceStrategy: z.enum(["economy", "all"]).default("economy"),
+  garmentPlacement: z.enum(["brief", "table", "floor", "floating", "custom"]).default("brief"),
+  garmentSurface: z.string().trim().max(500).default(""),
+  model: z.enum(["auto", "nano-banana-pro-flash", "nano-banana-pro"]).default("auto"),
+  targetModelImage: localImage.max(2_000_000).nullable().default(null),
+  modelDescription: z.string().max(700).default(""),
+  modeInstructions: z.string().max(1800).default(""),
+});
+export type GenerationSettings = z.infer<typeof generationSettingsSchema>;
 export const projectSchema = z.object({
   id: z.string(), brand: brandSchema, product: productSchema, concept: conceptSchema,
   composition: compositionSchema, createdAt: z.string(), updatedAt: z.string(),
   creativeBrief: z.string().max(1500).default(""),
-  generation: z.object({ taskId: z.string(), model: z.literal("nano-banana-pro-flash"), status: z.enum(["pending", "completed", "failed"]) }).optional(),
+  generationSettings: generationSettingsSchema.default({}),
+  generation: z.object({ taskId: z.string(), model: socialModelSchema, status: z.enum(["pending", "completed", "failed"]), productReferenceCount: z.number().optional(), totalProductImages: z.number().optional() }).optional(),
 });
 export type Project = z.infer<typeof projectSchema>;

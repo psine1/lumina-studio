@@ -55,14 +55,18 @@ export default defineConfig(async ({ command }) => {
     // The router shim imports navigation lazily. Pre-bundle it before the first
     // click so discovering Social Studio does not invalidate the browser cache.
     environments: {
-      client: { optimizeDeps: { include: ["next/link", "next/navigation", "zod"] } },
+      client: { optimizeDeps: { include: ["next/link", "next/navigation", "zod", "@mediapipe/tasks-vision"] } },
     },
     server: {
+      // Vite 8's console forwarding can send before the HMR socket connects,
+      // recursively forwarding its own rejection. Keep diagnostics in DevTools.
+      forwardConsole: false,
+      watch: {
+        ignored: ["**/.next/**", "**/outputs/**", "**/work/**"],
+        ...(isCodexSeatbeltSandbox ? { useFsEvents: false, usePolling: true } : {}),
+      },
       ...(managedLinux
         ? { host: "0.0.0.0", allowedHosts: ["terminal.local"] }
-        : {}),
-      ...(isCodexSeatbeltSandbox
-        ? { watch: { useFsEvents: false, usePolling: true } }
         : {}),
     },
     plugins: [

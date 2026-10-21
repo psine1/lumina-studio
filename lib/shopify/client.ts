@@ -94,7 +94,19 @@ export async function getCollections(after?: string) {
 }
 
 export async function getProduct(id: string) {
-  const data = z.object({ product: productSchema.nullable() }).parse(await query(`query Product($id: ID!) { product(id: $id) { ${fields} } }`, { id }));
+  const detailFields = fields.replace("images(first: 30)", "images(first: 100)").replace("id url altText width height } pageInfo { hasNextPage }", "id url altText width height } pageInfo { hasNextPage endCursor }");
+  const data = z.object({ product: productSchema.nullable() }).parse(await query(`query Product($id: ID!) { product(id: $id) { ${detailFields} } }`, { id }));
   if (!data.product) throw new ShopifyError("El producto ya no está disponible.", 404);
+  const seen = new Set(data.product.images.nodes.map((image) => image.id));
+  const cursors = new Set<string>();
+  while (data.product.images.pageInfo.hasNextPage && data.product.images.nodes.length < 500) {
+    const cursor = data.product.images.pageInfo.endCursor;
+    if (!cursor || cursors.has(cursor)) throw new ShopifyError("No se pudieron completar las fotos del producto. Volvé a consultar antes de generar.");
+    cursors.add(cursor);
+    const next = z.object({ product: z.object({ images: productSchema.shape.images }).nullable() }).parse(await query(`query ProductImages($id: ID!, $after: String!) { product(id: $id) { images(first: 100, after: $after) { nodes { id url altText width height } pageInfo { hasNextPage endCursor } } } }`, { id, after: cursor }));
+    if (!next.product) throw new ShopifyError("El producto ya no está disponible.", 404);
+    data.product.images.nodes.push(...next.product.images.nodes.filter((image) => { if (seen.has(image.id)) return false; seen.add(image.id); return true; }));
+    data.product.images.pageInfo = next.product.images.pageInfo;
+  }
   return data.product;
 }

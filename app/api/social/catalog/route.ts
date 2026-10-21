@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCatalog, getCollections, ShopifyError } from "@/lib/shopify/client";
+import { getCatalog, getCollections, getProduct, ShopifyError } from "@/lib/shopify/client";
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
+    if (url.searchParams.has("product")) {
+      const id = z.string().regex(/^gid:\/\/shopify\/Product\/\d+$/).parse(url.searchParams.get("product"));
+      return NextResponse.json({ product: await getProduct(id) }, { headers: { "Cache-Control": "no-store" } });
+    }
     if (url.searchParams.get("resource") === "collections") {
       const after = z.string().max(500).optional().parse(url.searchParams.get("after") || undefined);
       return NextResponse.json(await getCollections(after), { headers: { "Cache-Control": "no-store" } });

@@ -14,15 +14,37 @@ Las credenciales nunca forman parte de respuestas ni bundles de cliente. `.env.l
 
 El catálogo admite búsqueda por título, paginación por cursor, filtro de colección y actualización. Shopify no ofrece un argumento de búsqueda en `Collection.products`: al combinar colección y búsqueda se filtra cada página; se conserva el botón para cargar las siguientes. Se cargan hasta 30 fotografías, 50 variantes y 20 colecciones por producto, indicando si hay más. El selector carga todas las páginas de colecciones.
 
+Al seleccionar un producto se completa su galería mediante una consulta de detalle. Esta consulta pagina las imágenes de Shopify de 100 en 100, con límite de seguridad de 500 y detección de cursores repetidos. La generación vuelve a consultar las referencias del producto en el servidor antes de enviarlas al proveedor.
+
 Las fotografías pasan por `/api/social/media`, que solo acepta HTTPS y rutas `/s/files/` en `cdn.shopify.com`. No sigue redirecciones y verifica tipo y tamaño máximo de 15 MB. Esto permite exportar el lienzo desde el mismo origen y bloquea peticiones a hosts arbitrarios.
 
 ## Dirección editorial y composición
 
-Por elección del usuario, esta versión utiliza tres presets editoriales; **no es un agente de IA de texto** y no requiere un nuevo servicio ni credenciales de texto. Las propuestas son editorial asimétrica, marco de detalle y presencia mínima. No se atribuyen materiales, colecciones ni afirmaciones al producto que no estén presentes en el catálogo.
+El lienzo y la comparación incluyen zoom de 5% a 400%, ajuste a la ventana, vista al 100%, mano para desplazar y vista ampliada con cierre por Escape. Ctrl/Comando + rueda amplía alrededor del cursor; Espacio activa la mano temporalmente con foco en el lienzo. En comparación ambas imágenes comparten zoom y desplazamiento. Estas herramientas solo afectan la vista y no modifican el proyecto, la composición ni la exportación.
+
+### Tres modos y referencias múltiples
+
+En Solo prenda, «¿Dónde querés la prenda?» permite seguir el brief, apoyarla sobre una mesa, colocarla en el suelo, flotarla o usar otro elemento descrito por el usuario. El soporte o escena se guarda en el proyecto. Las instrucciones exigen acomodar la tela bajo gravedad sobre el soporte visible, sin conservar la pose de la persona; para prendas transparentes, los huecos deben mostrar el fondo o soporte, nunca piel. Estas reglas también se aplican a proyectos anteriores con instrucciones de modo personalizadas. La validación local comprueba los prompts; el resultado visual depende del modelo y requiere revisión.
+
+Hay tres botones en la preparación y en la pestaña Imagen del editor: `Editorial` (misma persona y otra escena), `Solo prenda` (únicamente el producto nombrado, sin persona ni maniquí visible, sobre fondo neutro) y `Otra modelo` (la prenda en otra persona adulta). El tercer modo admite subir una foto PNG/JPG/WebP de hasta 1 MB o describir un modelo nuevo. Si no hay foto ni descripción suficiente, se impide generar.
+
+Las instrucciones base de cada modo se pueden editar en opciones avanzadas y se guardan por proyecto. Las reglas de fidelidad siguen aplicándose. Separar la prenda puede reconstruir zonas ocultas; transferirla puede alterar el calce. La comparación y aprobación antes de exportar siguen siendo necesarias.
+
+`Ahorro` usa Flash con hasta 3 referencias totales. `Más vistas` usa todas las fotos que quepan: Flash si alcanzan 3 lugares, o Nano Banana Pro hasta 14. Al cambiar a Solo prenda u Otra modelo se preselecciona Más vistas y se muestra el modelo antes de generar. Pro puede consumir más créditos; no se hacen comparativas pagas automáticas. Si la foto de la nueva persona está presente, ocupa el último lugar: quedan hasta 13 referencias de la prenda en Pro, o 2 en Flash.
+
+La referencia elegida va primero y fija el color/estampado; las demás vistas van en el orden del catálogo, sin duplicar la principal. El panel muestra cantidad, miniaturas y fotos omitidas por el límite: no afirma usar todas cuando no caben. Se indican al modelo los roles de las fotos de producto y de persona. Las URLs de producto se verifican contra Shopify; la foto de persona se carga a Magnific únicamente al generar y no se sube a Shopify.
+
+Antes de pagar se comprueba que el modelo calculado en el servidor coincida con el mostrado en el cliente. Si las fotos cambiaron y requieren otro modelo, se devuelve un error para revisar la elección en lugar de subir de modelo silenciosamente. Se guarda el proveedor y el número de referencias de cada tarea para consultarla después sin generar otra imagen. Los proyectos previos conservan el modo Editorial y la estrategia Ahorro.
+
+Límites consultados: https://docs.magnific.com/api-reference/text-to-image/nano-banana-pro-flash/overview y https://docs.magnific.com/api-reference/text-to-image/post-nano-banana-pro. Se usa el límite conservador de 3 para Flash, ante diferencias entre su página de resumen y el esquema detallado.
+
+El flujo es producto → brief → editor, sin seleccionar propuestas en una pantalla intermedia. El brief abre una composición inicial sin generar una imagen ni gastar créditos. En Imagen, Cambiar estilo permite elegir Foto protagonista, Fondo claro o Más espacio libre. Si ya hay una imagen generada, el estilo se aplica a la siguiente generación.
+
+Esta versión utiliza tres presets editoriales; **no es un agente de IA de texto** y no requiere un nuevo servicio ni credenciales de texto. Las propuestas son editorial asimétrica, marco de detalle y presencia mínima. No se atribuyen materiales, colecciones ni afirmaciones al producto que no estén presentes en el catálogo.
 
 La selección de contenido puede priorizar detalle o composición mínima. Las notas libres se envían a Magnific junto con el Brand Kit, el layout y la foto del producto: dirigen la transformación visual. No hay un modelo de texto que escriba conceptos o captions nuevos; estos siguen siendo presets editables. Los atajos locales reconocen quitar texto, oscurecer el marco, más espacio negativo y foco en silueta / brutalismo. El campo de ajuste visual se envía al modelo al generar otra versión.
 
-El Brand Kit SADAELS está separado del generador y utiliza un modelo de marca reusable con paleta, tipografía, dirección, tono, prohibiciones, instrucciones, referencias y conexión de Shopify. En esta primera versión hay una tienda de servidor y una marca activa. Las referencias e instrucciones se guardan para consulta; no se analizan automáticamente ni hay selector de múltiples tiendas.
+El Brand Kit SADAELS está separado del generador y utiliza un modelo de marca reusable con paleta, tipografía, dirección, tono, prohibiciones, instrucciones, referencias y conexión de Shopify. Hay una tienda de servidor y varios Brand Kits locales. La migración conserva el kit existente como primero y agrega SADAELS · Luz natural como segundo kit de prueba. Marca permite elegir, editar, guardar o crear una copia con identidad propia; el brief y la pestaña Imagen del editor permiten elegir el kit para el posteo. Cada proyecto guarda su propia copia: editar un kit no altera proyectos anteriores. Cambiarlo en el editor aplica tipografía y logo; la escena generada cambia al generar otra versión. Los kits se conservan en IndexedDB en este navegador. Las referencias e instrucciones se guardan para consulta; no se analizan automáticamente ni hay selector de múltiples tiendas.
 
 El editor existente solo admite edición de imágenes por prompt y no posee capas. Se añade una capacidad de composición para Social Studio, manteniendo ese flujo intacto y reutilizando sus APIs de generación. El esquema editable conserva fondo, fotografía original, texto y logo opcional; el mismo renderer se usa para preview y exportación. No hay coordenadas inventadas por un modelo: los layouts tienen parámetros controlables.
 
@@ -54,11 +76,11 @@ El editor conserva el lienzo visible y organiza las herramientas en `Imagen`, `T
 
 `Descargar` concentra la elección PNG/JPG, la revisión de la prenda, el caption ES/EN, la copia bilingüe y el proyecto JSON. Las opciones técnicas de tarea y composición no ocupan la vista principal. Los avisos informativos se muestran temporalmente; los errores permanecen visibles. El catálogo incluye estados de carga con tarjetas y las interfaces respetan la preferencia de movimiento reducido.
 
-La persistencia reutiliza `localStorage`, con claves exclusivas de Social Studio. No se introduce una base de datos. Cada proyecto conserva una copia del Brand Kit, evitando que editar la marca altere proyectos existentes. Guardar es explícito. Se puede reabrir, duplicar, cambiar de formato, editar captions por idioma y copiar el caption separado de la tipografía.
+Social Studio guarda proyectos, Brand Kit y tareas pendientes en IndexedDB (`luma-social`, stores `projects` y `settings`). Cada proyecto se escribe individualmente y el indicador de guardado espera la confirmación de la transacción. Al abrir la aplicación se migran las claves anteriores de `localStorage`; solo se eliminan cuando la migración completa confirma su escritura. Si falla, se conserva el origen. Una copia antigua no reemplaza un proyecto más reciente. Cada proyecto conserva su Brand Kit, evitando que editar la marca altere proyectos existentes. Guardar es explícito. Se puede reabrir, duplicar, eliminar, cambiar de formato y editar captions.
 
 La exportación genera PNG o JPG a 1080 × 1080, 1080 × 1350 o 1080 × 1920. El proyecto JSON permite guardar una copia editable en el equipo e importarla con un ID nuevo. No se publican imágenes en Shopify, Instagram ni Facebook; no hay endpoints de publicación ni uploads hacia SADAELS.
 
-Los proyectos y assets locales no se sincronizan entre dispositivos. Fotos del catálogo siguen dependiendo de sus URLs originales. Fondos grandes pueden superar la cuota de `localStorage`; se informa del error y se ofrece descargar JSON. Esta versión mantiene el contexto privado de la aplicación existente, que no tiene autenticación propia; no se desplegó ni se cambió su audiencia.
+Los proyectos y assets locales no se sincronizan entre dispositivos. Fotos del catálogo siguen dependiendo de sus URLs originales. IndexedDB admite proyectos mayores que la cuota pequeña de `localStorage`, pero sigue sujeto al espacio y los permisos del navegador. Se conserva la exportación/importación JSON como respaldo. Esta versión mantiene el contexto privado de la aplicación existente, que no tiene autenticación propia; no se desplegó ni se cambió su audiencia. Las pruebas de almacenamiento usan `fake-indexeddb` y cubren migración, repetición sin duplicados, proyectos de más de 5 MB, fallos de transacciones sin pérdida del origen, reapertura y eliminación.
 
 ## Verificación
 
@@ -68,6 +90,12 @@ Los proyectos y assets locales no se sincronizan entre dispositivos. Fotos del c
 - Verificaciones reales de Shopify: token, dos páginas distintas, búsqueda, colecciones, filtro, moneda y fotografía original. Lectura exclusivamente.
 
 No hubo un navegador conectado disponible en esta sesión: la interacción y descarga visual completas requieren una prueba manual en `/social`.
+
+### Profundidad de texto y logo
+
+En Texto o Logo, abrir **Preparar recorte de la modelo**, pulsar **Detectar modelo**, corregir la zona verde con **Incluir/Borrar** y guardar. Luego elegir **Detrás de la modelo** en la profundidad de cada elemento. La máscara permite restaurar los píxeles originales de la persona por encima de los elementos posteriores, sin regenerar la fotografía. Se comparte el render entre vista previa y descarga PNG/JPG; se conserva en el proyecto JSON.
+
+La detección usa MediaPipe en el navegador, sin enviar la fotografía ni gastar créditos. La primera ejecución requiere conexión para descargar WASM y el modelo de segmentación. Pelo, transparencias y detalles finos pueden requerir corrección manual. Cambiar foto, formato o encuadre invalida el recorte anterior. Se verificó el orden de capas con pruebas; la precisión visual del detector requiere revisión sobre la imagen real.
 
 ### Compatibilidad con la vista local Vite / Cloudflare
 

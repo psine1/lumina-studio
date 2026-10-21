@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { getGenerationStatus, normalizeAsset, normalizeGenerationStatus } from "@/lib/magnific/client";
 import { SOCIAL_IMAGE_MODEL } from "@/lib/social/generation";
+import { socialModelSchema } from "@/lib/social/schema";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
     if (!/^[a-zA-Z0-9_-]{1,150}$/.test(id)) return NextResponse.json({ error: "Tarea inválida." }, { status: 400 });
-    const task = await getGenerationStatus(SOCIAL_IMAGE_MODEL, id);
+    const model = socialModelSchema.safeParse(new URL(request.url).searchParams.get("model") || SOCIAL_IMAGE_MODEL);
+    if (!model.success) return NextResponse.json({ error: "Modelo no válido." }, { status: 400 });
+    const task = await getGenerationStatus(model.data, id);
     const status = normalizeGenerationStatus(task.data?.status);
     const asset = task.data?.generated?.[0];
     if (new URL(request.url).searchParams.get("asset") !== "1") return NextResponse.json({ status, hasImage: Boolean(asset) }, { headers: { "Cache-Control": "no-store" } });

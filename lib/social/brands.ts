@@ -10,3 +10,12 @@ export const SADAELS: Brand = {
   instructions: "Actuar como director de arte de moda y estratega de SADAELS. Proponer tres direcciones editoriales distintas. Nunca inventar colecciones, citas, materiales, técnicas, sostenibilidad ni inspiraciones históricas. Conservar construcción, silueta, proporciones, color, textura, botones, logos y detalles de la prenda. Priorizar la fotografía original y fondos separados. Nunca pedir al modelo que dibuje el logo. Separar caption de tipografía. Toda imagen de prenda modificada por IA requiere revisión humana.",
   logo: null, references: [],
 };
+
+export const SADAELS_DAYLIGHT: Brand = {
+  ...SADAELS, id: "sadaels-daylight", name: "SADAELS · Luz natural",
+  colors: ["#302b25", "#b6a793", "#f5f0e6", "#d8cbbb", "#73806b"], typography: "Georgia",
+  tone: "Claro, sereno y preciso. Frases breves centradas en la presencia y construcción de la prenda, sin exageraciones comerciales.",
+  direction: "Fotografía editorial luminosa con luz natural difusa, sombras suaves, fondos cálidos claros, piedra mate y madera natural. Composiciones abiertas y tranquilas, colores fieles y textura legible. Evitar corredores oscuros, claroscuro dramático y ambientes industriales. Respetar siempre el soporte o escena pedido por el usuario.",
+  prohibited: "Sombras que oculten la prenda, fondos negros dominantes, saturación excesiva, clichés publicitarios, afirmaciones no verificadas y accesorios inventados.",
+  instructions: "Crear imágenes de producto luminosas y serenas. Conservar diseño, color, construcción y detalles reales. Seguir el modo de creación y la escena solicitada. No dibujar textos ni logos; se agregan en el editor. No inventar materiales, colecciones ni atributos del producto.",
+};
