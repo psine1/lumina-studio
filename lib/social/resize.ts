@@ -4,6 +4,7 @@ import type { LayerBox } from "./overlays";
 export type ResizeCorner = "nw" | "ne" | "sw" | "se";
 
 export function scaleLayerFromCorner(layer: OverlayLayer, box: LayerBox, corner: ResizeCorner, dx: number, dy: number, canvasWidth: number, canvasHeight: number): OverlayLayer {
+  if (layer.locked) return layer;
   if (box.width <= 0 || box.height <= 0) return layer;
   const right = corner.endsWith("e"), bottom = corner.startsWith("s");
   const sx = right ? 1 : -1, sy = bottom ? 1 : -1;

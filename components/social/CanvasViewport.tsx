@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { Hand, Maximize2, Minimize2, MousePointer2, ZoomIn, ZoomOut } from "lucide-react";
 import { zoomViewport } from "@/lib/social/viewport";
 
-type Props = { width: number; height: number; children: ReactNode; toolbarActions?: ReactNode; floatingPanel?: ReactNode };
+type Props = { allowExpand?: boolean; selectionLabel?: string; width: number; height: number; children: ReactNode; toolbarActions?: ReactNode; floatingPanel?: ReactNode };
 
-export function CanvasViewport({ width, height, children, toolbarActions, floatingPanel }: Props) {
+export function CanvasViewport({ allowExpand = true, selectionLabel = "Seleccionar texto o logo", width, height, children, toolbarActions, floatingPanel }: Props) {
   const viewport = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const [size, setSize] = useState({ width: 800, height: 550 });
@@ -55,7 +55,7 @@ export function CanvasViewport({ width, height, children, toolbarActions, floati
 
   return <div className={`post-viewport-shell ${expanded ? "expanded" : ""}`}>
     <div className="post-viewport-toolbar" role="toolbar" aria-label="Herramientas del lienzo">
-      <button type="button" aria-label="Seleccionar texto o logo" title="Seleccionar" aria-pressed={!hand} onClick={() => setHand(false)}><MousePointer2 size={15} /></button>
+      <button type="button" aria-label={selectionLabel} title={selectionLabel} aria-pressed={!hand} onClick={() => setHand(false)}><MousePointer2 size={15} /></button>
       <button type="button" aria-label="Mano para desplazar la vista" title="Mano · también podés mantener Espacio sobre el lienzo" aria-pressed={hand} onClick={() => setHand(!hand)}><Hand size={15} /></button>
       <button type="button" aria-label="Alejar" disabled={scale <= .05} onClick={() => adjustZoom(scale / 1.25)}><ZoomOut size={15} /></button>
       <select aria-label="Zoom del lienzo" value={zoom === null ? "fit" : String(zoom)} onChange={(event) => event.target.value === "fit" ? reset() : adjustZoom(Number(event.target.value))}>
@@ -65,7 +65,7 @@ export function CanvasViewport({ width, height, children, toolbarActions, floati
       </select>
       <button type="button" aria-label="Acercar" disabled={scale >= 4} onClick={() => adjustZoom(scale * 1.25)}><ZoomIn size={15} /></button>
       <button type="button" onClick={reset}>Ajustar</button>
-      <button type="button" aria-label={expanded ? "Cerrar vista ampliada" : "Ampliar lienzo"} aria-pressed={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{expanded ? "Cerrar" : "Ampliar"}</button>
+      {allowExpand && <button type="button" aria-label={expanded ? "Cerrar vista ampliada" : "Ampliar lienzo"} aria-pressed={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{expanded ? "Cerrar" : "Ampliar"}</button>}
       {toolbarActions && <div className="post-viewport-actions">{toolbarActions}</div>}
     </div>
     <div ref={viewport} className={`post-viewport ${moving ? "hand" : ""} ${dragging ? "dragging" : ""}`} tabIndex={0} aria-label="Lienzo. Usá Mano para desplazar, Control o Comando más rueda para zoom, y Espacio para activar la mano temporalmente."

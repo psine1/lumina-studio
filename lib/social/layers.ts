@@ -4,8 +4,8 @@ import { logoStyleSchema, textStyleSchema, type Brand, type Composition, type Ov
 export function compositionLayers(composition: Composition, brand: Brand): OverlayLayer[] {
   if (composition.layers) return composition.layers;
   const layers: OverlayLayer[] = [];
-  if (composition.text) layers.push({ id: "legacy-text", name: "Texto", type: "text", visible: true, text: composition.text, color: composition.textColor, font: composition.font, style: textStyleSchema.parse(composition.textStyle || {}) });
-  if (brand.logo) layers.push({ id: "legacy-logo", name: "Logo", type: "image", visible: composition.logoVisible, src: brand.logo, style: logoStyleSchema.parse(composition.logoStyle || {}) });
+  if (composition.text) layers.push({ id: "legacy-text", name: "Texto", type: "text", locked: false, visible: true, text: composition.text, color: composition.textColor, font: composition.font, style: textStyleSchema.parse(composition.textStyle || {}) });
+  if (brand.logo) layers.push({ id: "legacy-logo", name: "Logo", type: "image", locked: false, visible: composition.logoVisible, src: brand.logo, style: logoStyleSchema.parse(composition.logoStyle || {}) });
   return layers;
 }
 
@@ -16,7 +16,7 @@ export function layerComposition(composition: Composition, layer: OverlayLayer):
 export function patchCompositionLayer(composition: Composition, brand: Brand, id: string, patch: Partial<Composition>): Partial<Composition> {
   const { text, textColor, font, textStyle, logoStyle, logoVisible, layers: _layers, ...common } = patch;
   void _layers;
-  return { ...common, layers: compositionLayers(composition, brand).map((layer) => layer.id !== id ? layer : layer.type === "text" ? { ...layer, ...(text !== undefined ? { text } : {}), ...(textColor !== undefined ? { color: textColor } : {}), ...(font !== undefined ? { font } : {}), ...(textStyle ? { style: textStyle } : {}) } : { ...layer, ...(logoStyle ? { style: logoStyle } : {}), ...(logoVisible !== undefined ? { visible: logoVisible } : {}) }) };
+  return { ...common, layers: compositionLayers(composition, brand).map((layer) => layer.id !== id || layer.locked ? layer : layer.type === "text" ? { ...layer, ...(text !== undefined ? { text } : {}), ...(textColor !== undefined ? { color: textColor } : {}), ...(font !== undefined ? { font } : {}), ...(textStyle ? { style: textStyle } : {}) } : { ...layer, ...(logoStyle ? { style: logoStyle } : {}), ...(logoVisible !== undefined ? { visible: logoVisible } : {}) }) };
 }
 
 export type CompositionStackEntry = { type: "layer"; layer: OverlayLayer } | { type: "subject" };
@@ -28,6 +28,7 @@ export function compositionStack(layers: OverlayLayer[], hasMask: boolean): Comp
 }
 
 export function reorderLayer(layers: OverlayLayer[], id: string, direction: "up" | "down", hasMask = false) {
+  if (layers.find((layer) => layer.id === id)?.locked) return layers;
   if (hasMask) {
     const stack = compositionStack(layers, true);
     const index = stack.findIndex((entry) => entry.type === "layer" && entry.layer.id === id), next = index + (direction === "up" ? 1 : -1);

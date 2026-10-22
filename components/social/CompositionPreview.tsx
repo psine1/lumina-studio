@@ -4,14 +4,15 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, ty
 import { formats, type OverlayLayer, type Brand, type Composition } from "@/lib/social/schema";
 import { renderComposition } from "@/lib/social/composition";
 import { compositionLayers, patchCompositionLayer } from "@/lib/social/layers";
+import { snapLayer } from "@/lib/social/snapping";
 import { scaleLayerFromCorner, type ResizeCorner } from "@/lib/social/resize";
 import type { LayerBox, OverlayGeometry } from "@/lib/social/overlays";
 
 type Layer = string;
-type Props = { composition: Composition; brand: Brand; onChange?: (patch: Partial<Composition>) => void; onSelectLayer?: (layer: Layer) => void; showTools?: boolean; guidesVisible?: boolean; selectedLayerId?: string | null; onSelectBackground?: () => void };
+type Props = { snapping?: boolean; onGestureStart?: () => void; onGestureEnd?: () => void; composition: Composition; brand: Brand; onChange?: (patch: Partial<Composition>) => void; onSelectLayer?: (layer: Layer) => void; showTools?: boolean; guidesVisible?: boolean; selectedLayerId?: string | null; onSelectBackground?: () => void };
 
 type HandleProps = {
-  id: string; name: string; box: LayerBox; active: boolean; width: number; height: number;
+  locked?: boolean; id: string; name: string; box: LayerBox; active: boolean; width: number; height: number;
   onSelect: (id: string) => void; onFinish: () => void;
   onStart: (event: PointerEvent<HTMLDivElement>, id: string, box: LayerBox) => void;
   onMove: (event: PointerEvent<HTMLDivElement>) => void;
@@ -19,14 +20,15 @@ type HandleProps = {
   onStartResize: (event: PointerEvent<HTMLSpanElement>, id: string, box: LayerBox, corner: ResizeCorner) => void;
   onKeyResize: (event: KeyboardEvent<HTMLSpanElement>, id: string, box: LayerBox, corner: ResizeCorner) => void;
 };
-function LayerHandle({ id, name, box, active, width, height, onSelect, onFinish, onStart, onMove, onKeyMove, onStartResize, onKeyResize }: HandleProps) {
+function LayerHandle({ locked, id, name, box, active, width, height, onSelect, onFinish, onStart, onMove, onKeyMove, onStartResize, onKeyResize }: HandleProps) {
   const style: CSSProperties = { left: `${box.x / width * 100}%`, top: `${box.y / height * 100}%`, width: `${box.width / width * 100}%`, height: `${box.height / height * 100}%` };
-  return <div className={`social-layer-handle ${active ? "selected" : ""}`} style={style} role="button" tabIndex={0} aria-label={`Mover ${name}. Arrastrá o usá las flechas; Shift mueve 10 píxeles.`} onFocus={() => onSelect(id)} onPointerDown={(event) => onStart(event, id, box)} onPointerMove={onMove} onPointerUp={onFinish} onPointerCancel={onFinish} onLostPointerCapture={onFinish} onKeyDown={(event) => onKeyMove(event, id, box)}><span>{name}</span>{active && (["nw", "ne", "sw", "se"] as const).map((corner) => <span key={corner} role="button" tabIndex={0} className={`social-resize-handle ${corner}`} aria-label={`Escalar ${name} desde la esquina ${corner === "nw" ? "superior izquierda" : corner === "ne" ? "superior derecha" : corner === "sw" ? "inferior izquierda" : "inferior derecha"}. Usá las flechas para cambiar el tamaño.`} title="Arrastrá para escalar proporcionalmente" onPointerDown={(event) => onStartResize(event, id, box, corner)} onKeyDown={(event) => onKeyResize(event, id, box, corner)} />)}</div>;
+  return <div className={`social-layer-handle ${active ? "selected" : ""} ${locked ? "locked" : ""}`} style={style} role="button" tabIndex={0} aria-label={`Mover ${name}. Arrastrá o usá las flechas; Shift mueve 10 píxeles.`} onFocus={() => onSelect(id)} onPointerDown={(event) => onStart(event, id, box)} onPointerMove={onMove} onPointerUp={onFinish} onPointerCancel={onFinish} onLostPointerCapture={onFinish} onKeyDown={(event) => onKeyMove(event, id, box)}><span>{name}</span>{active && !locked && (["nw", "ne", "sw", "se"] as const).map((corner) => <span key={corner} role="button" tabIndex={0} className={`social-resize-handle ${corner}`} aria-label={`Escalar ${name} desde la esquina ${corner === "nw" ? "superior izquierda" : corner === "ne" ? "superior derecha" : corner === "sw" ? "inferior izquierda" : "inferior derecha"}. Usá las flechas para cambiar el tamaño.`} title="Arrastrá para escalar proporcionalmente" onPointerDown={(event) => onStartResize(event, id, box, corner)} onKeyDown={(event) => onKeyResize(event, id, box, corner)} />)}</div>;
 }
 
-export function CompositionPreview({ composition, brand, onChange, onSelectLayer, showTools = true, guidesVisible, selectedLayerId, onSelectBackground }: Props) {
+export function CompositionPreview({ snapping = true, onGestureStart, onGestureEnd, composition, brand, onChange, onSelectLayer, showTools = true, guidesVisible, selectedLayerId, onSelectBackground }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null), container = useRef<HTMLDivElement>(null);
   const drag = useRef<{ layer: Layer; x: number; y: number; box: LayerBox; corner?: ResizeCorner; original?: OverlayLayer } | null>(null);
+  const [snapGuides, setSnapGuides] = useState<{ x: number | null; y: number | null } | null>(null);
   const [error, setError] = useState("");
   const [geometry, setGeometry] = useState<OverlayGeometry | null>(null);
   const [selected, setSelected] = useState<Layer>("legacy-text"), [guides, setGuides] = useState(true);
@@ -40,11 +42,13 @@ export function CompositionPreview({ composition, brand, onChange, onSelectLayer
   function move(layer: Layer, x: number, y: number, box: LayerBox) {
     const position = { x: Math.max(0, Math.min(1 - box.width / width, x / width)), y: Math.max(0, Math.min(1 - box.height / height, y / height)) };
     const target = compositionLayers(composition, brand).find((item) => item.id === layer);
-    if (!target) return;
+    if (!target || target.locked) return;
     onChange?.(patchCompositionLayer(composition, brand, layer, target.type === "text" ? { textStyle: { ...target.style, ...position } } : { logoStyle: { ...target.style, ...position } }));
   }
   function start(event: PointerEvent<HTMLDivElement>, layer: Layer, box: LayerBox) {
     if (event.button !== 0) return;
+    if (compositionLayers(composition, brand).find((item) => item.id === layer)?.locked) { selectHandle(layer); return; }
+    onGestureStart?.();
     event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId);
     setSelected(layer); onSelectLayer?.(layer); drag.current = { layer, x: event.clientX, y: event.clientY, box };
   }
@@ -55,7 +59,8 @@ export function CompositionPreview({ composition, brand, onChange, onSelectLayer
   function startResize(event: PointerEvent<HTMLSpanElement>, layer: Layer, box: LayerBox, corner: ResizeCorner) {
     if (event.button !== 0) return;
     const original = compositionLayers(composition, brand).find((item) => item.id === layer);
-    if (!original) return;
+    if (!original || original.locked) return;
+    onGestureStart?.();
     event.preventDefault(); event.stopPropagation(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId);
     setSelected(layer); onSelectLayer?.(layer);
     drag.current = { layer, x: event.clientX, y: event.clientY, box: { ...box }, corner, original: structuredClone(original) };
@@ -67,7 +72,13 @@ export function CompositionPreview({ composition, brand, onChange, onSelectLayer
       applyScale(current.original, current.box, current.corner, (event.clientX - current.x) * width / bounds.width, (event.clientY - current.y) * height / bounds.height);
       return;
     }
-    move(current.layer, current.box.x + (event.clientX - current.x) * width / bounds.width, current.box.y + (event.clientY - current.y) * height / bounds.height, current.box);
+    let x = current.box.x + (event.clientX - current.x) * width / bounds.width;
+    let y = current.box.y + (event.clientY - current.y) * height / bounds.height;
+    if (snapping && !event.altKey) {
+      const snap = snapLayer(current.box, x, y, width, height, (geometry?.layers || []).filter((item) => item.id !== current.layer).map((item) => item.box), 8 * width / bounds.width);
+      x = snap.x; y = snap.y; setSnapGuides({ x: snap.guideX, y: snap.guideY });
+    } else setSnapGuides(null);
+    move(current.layer, x, y, current.box);
   }
   function keyMove(event: KeyboardEvent<HTMLDivElement>, layer: Layer, box: LayerBox) {
     const directions: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
@@ -75,12 +86,12 @@ export function CompositionPreview({ composition, brand, onChange, onSelectLayer
     event.preventDefault(); const step = event.shiftKey ? 10 : 1;
     move(layer, box.x + direction[0] * step, box.y + direction[1] * step, box);
   }
-  function finishDrag() { drag.current = null; }
+  function finishDrag() { if (drag.current) onGestureEnd?.(); drag.current = null; setSnapGuides(null); }
   function selectHandle(id: string) { setSelected(id); onSelectLayer?.(id); }
   function keyResize(event: KeyboardEvent<HTMLSpanElement>, layer: Layer, box: LayerBox, corner: ResizeCorner) {
     if (!["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.key)) return;
     event.preventDefault(); event.stopPropagation();
-    const original = compositionLayers(composition, brand).find((item) => item.id === layer); if (!original) return;
+    const original = compositionLayers(composition, brand).find((item) => item.id === layer); if (!original || original.locked) return;
     const amount = (event.key === "ArrowUp" || event.key === "ArrowRight" ? 1 : -1) * (event.shiftKey ? .1 : .02);
     applyScale(original, box, corner, (corner.endsWith("e") ? 1 : -1) * box.width * amount, (corner.startsWith("s") ? 1 : -1) * box.height * amount);
   }
@@ -88,7 +99,9 @@ export function CompositionPreview({ composition, brand, onChange, onSelectLayer
     <div ref={container} className="social-preview" style={{ aspectRatio: `${width}/${height}` }}>
       <canvas onPointerDown={() => onSelectBackground?.()} ref={canvas} aria-label="Vista previa de la composición" />
       {onChange && (guidesVisible ?? guides) && <div className="social-canvas-guides" aria-hidden="true"><i /><b /></div>}
-      {!error && onChange && geometry?.layers?.map((layer) => <LayerHandle key={layer.id} {...layer} active={(selectedLayerId === undefined ? selected : selectedLayerId) === layer.id} width={width} height={height} onSelect={selectHandle} onFinish={finishDrag} onStart={start} onMove={pointerMove} onKeyMove={keyMove} onStartResize={startResize} onKeyResize={keyResize} />)}
+      {snapGuides?.x !== null && snapGuides?.x !== undefined && <i className="social-snap-guide vertical" style={{ left: `${snapGuides.x / width * 100}%` }} aria-hidden="true" />}
+      {snapGuides?.y !== null && snapGuides?.y !== undefined && <i className="social-snap-guide horizontal" style={{ top: `${snapGuides.y / height * 100}%` }} aria-hidden="true" />}
+      {!error && onChange && geometry?.layers?.map((layer) => <LayerHandle locked={compositionLayers(composition, brand).find((item) => item.id === layer.id)?.locked} key={layer.id} {...layer} active={(selectedLayerId === undefined ? selected : selectedLayerId) === layer.id} width={width} height={height} onSelect={selectHandle} onFinish={finishDrag} onStart={start} onMove={pointerMove} onKeyMove={keyMove} onStartResize={startResize} onKeyResize={keyResize} />)}
       {error && <span className="social-preview-error">{error}</span>}
     </div>
     {onChange && showTools && <div className="social-preview-tools"><span>Arrastrá el texto o el logo. También podés moverlos con las flechas.</span><label><input type="checkbox" checked={guides} onChange={(event) => setGuides(event.target.checked)} />Guías</label></div>}

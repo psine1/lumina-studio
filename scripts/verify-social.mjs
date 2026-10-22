@@ -18,6 +18,37 @@ async function moduleUrl(path) {
   return url;
 }
 const schema = await import(await moduleUrl(new URL("../lib/social/schema.ts", import.meta.url)));
+const { EditHistory, sameComposition } = await import(await moduleUrl(new URL("../lib/social/history.ts", import.meta.url)));
+const { snapLayer } = await import(await moduleUrl(new URL("../lib/social/snapping.ts", import.meta.url)));
+const { foregroundConfidence, confidenceAlpha, refineMaskAlpha } = await import(await moduleUrl(new URL("../lib/social/mask.ts", import.meta.url)));
+const foreground = foregroundConfidence([new Float32Array([1, .75, 0]), new Float32Array([0, .25, 1])], ["background", "person"]);
+assert.deepEqual(Array.from(foreground), [0, .25, 1], "Multiclass segmentation inverts background confidence, never masks out the person");
+assert.deepEqual(Array.from(foregroundConfidence([new Float32Array([0, .5, 1])], ["person"])), [0, .5, 1], "Single foreground maps stay uninverted");
+assert.throws(() => foregroundConfidence([new Float32Array([0]), new Float32Array([1])], []));
+assert.deepEqual(Array.from(confidenceAlpha(new Float32Array([0, .1, .45, .8, 1]))), [0, 0, 127, 255, 255]);
+const alphaSample = new Uint8ClampedArray(49); alphaSample[24] = 255;
+const grown = refineMaskAlpha(alphaSample, 7, 7, 1, 0);
+assert.equal(Array.from(grown).filter(Boolean).length, 9, "Expanding preserves a square neighborhood");
+assert.deepEqual(refineMaskAlpha(grown, 7, 7, -1, 0), alphaSample, "Contracting removes the surrounding edge");
+const feathered = refineMaskAlpha(alphaSample, 7, 7, 0, 1);
+assert(feathered[24] > 0 && feathered[24] < 255); assert(feathered[23] > 0); assert.equal(alphaSample[23], 0, "Refinement never mutates the original mask");
+assert.deepEqual(refineMaskAlpha(alphaSample, 7, 7, 0, 0), alphaSample);
+const editHistory = new EditHistory(0, Object.is, 3);
+editHistory.begin(); editHistory.commit(1); editHistory.commit(2); editHistory.commit(3); editHistory.end();
+assert.equal(editHistory.undo(), 0, "A complete drag is one undo action");
+assert.equal(editHistory.redo(), 3);
+editHistory.commit(4, "field", 1000); editHistory.commit(5, "field", 1200);
+assert.equal(editHistory.undo(), 3, "Continuous typing is grouped");
+editHistory.commit(6); assert.equal(editHistory.canRedo, false, "A new edit invalidates redo");
+editHistory.commit(7); editHistory.commit(8); editHistory.commit(9);
+assert.equal(editHistory.undo(), 8); assert.equal(editHistory.undo(), 7); assert.equal(editHistory.undo(), 6); assert.equal(editHistory.undo(), null);
+editHistory.reset(42); assert.equal(editHistory.canUndo, false); assert.equal(editHistory.canRedo, false);
+const snapBox = { x: 0, y: 0, width: 100, height: 100 };
+const snappedCenter = snapLayer(snapBox, 447, 451, 1000, 1000, [], 8);
+assert.equal(snappedCenter.x, 450); assert.equal(snappedCenter.y, 450); assert.equal(snappedCenter.guideX, 500);
+assert.equal(snapLayer(snapBox, 48, 130, 1000, 1000, [], 8).x, 50, "Canvas margins snap");
+assert.equal(snapLayer(snapBox, 296, 130, 1000, 1000, [{ x: 300, y: 300, width: 100, height: 100 }], 8).x, 300, "Other layers are alignment targets");
+assert.equal(snapLayer(snapBox, 221, 231, 1000, 1000, [], 8).guideX, null);
 const { compositionLayers, compositionStack, layerComposition, patchCompositionLayer, reorderLayer } = await import(await moduleUrl(new URL("../lib/social/layers.ts", import.meta.url)));
 const { scaleLayerFromCorner } = await import(await moduleUrl(new URL("../lib/social/resize.ts", import.meta.url)));
 const { zoomViewport } = await import(await moduleUrl(new URL("../lib/social/viewport.ts", import.meta.url)));
@@ -214,8 +245,19 @@ const multiLayers = [
   schema.overlayLayerSchema.parse({ id: "image-hidden", name: "Hidden", type: "image", src: "data:image/png;base64,aGlkZGVu", visible: false, style: {} }),
 ];
 const multiComposition = schema.compositionSchema.parse({ ...styled, subjectMask: null, layers: multiLayers });
+const compositionHistory = new EditHistory(multiComposition, sameComposition);
+compositionHistory.commit(structuredClone(multiComposition));
+assert.equal(compositionHistory.canUndo, false, "Blur and no-op style updates do not create phantom undo actions");
+compositionHistory.commit({ ...multiComposition, layers: multiLayers.map((layer) => layer.id === "text-a" ? { ...layer, locked: true } : layer) });
+assert.equal(compositionHistory.canUndo, true); assert.equal(compositionHistory.undo().layers[0].locked, false, "Locking is undoable");
 const resizeText = schema.overlayLayerSchema.parse({ ...multiLayers[0], style: { x: .3, y: .3, width: .3, fontSize: 60, letterSpacing: 2, lineHeight: 1.4 } });
 const resizeImage = schema.overlayLayerSchema.parse({ ...multiLayers[1], style: { x: .3, y: .3, width: .3 } });
+assert.equal(resizeText.locked, false, "Older layers remain editable");
+const lockedLayer = { ...resizeText, locked: true };
+assert.equal(scaleLayerFromCorner(lockedLayer, { x: 300, y: 300, width: 300, height: 120 }, "se", 150, 60, 1000, 1000), lockedLayer);
+const lockedComposition = { ...multiComposition, layers: [lockedLayer] };
+assert.equal(patchCompositionLayer(lockedComposition, styledBrand, lockedLayer.id, { text: "Unwanted edit" }).layers[0].text, lockedLayer.text);
+assert.deepEqual(reorderLayer([lockedLayer, resizeImage], lockedLayer.id, "up"), [lockedLayer, resizeImage]);
 const resizeBox = { x: 300, y: 300, width: 300, height: 120 };
 for (const corner of ["nw", "ne", "sw", "se"]) {
   const sx = corner.endsWith("e") ? 1 : -1, sy = corner.startsWith("s") ? 1 : -1;

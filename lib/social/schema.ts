@@ -54,8 +54,8 @@ export const logoStyleSchema = z.object({
   width: z.number().min(.03).max(.7).default(.15), opacity: z.number().min(0).max(1).default(1),
 });
 export const overlayLayerSchema = z.discriminatedUnion("type", [
-  z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(100), type: z.literal("text"), visible: z.boolean().default(true), text: z.string().max(160), color: z.string().regex(/^#[a-fA-F0-9]{6}$/), font: z.enum(["Arial", "Georgia", "Times New Roman"]), style: textStyleSchema }),
-  z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(100), type: z.literal("image"), visible: z.boolean().default(true), src: localImage.max(2_000_000), style: logoStyleSchema }),
+  z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(100), type: z.literal("text"), locked: z.boolean().default(false), visible: z.boolean().default(true), text: z.string().max(160), color: z.string().regex(/^#[a-fA-F0-9]{6}$/), font: z.enum(["Arial", "Georgia", "Times New Roman"]), style: textStyleSchema }),
+  z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(100), type: z.literal("image"), locked: z.boolean().default(false), visible: z.boolean().default(true), src: localImage.max(2_000_000), style: logoStyleSchema }),
 ]);
 export type OverlayLayer = z.infer<typeof overlayLayerSchema>;
 export const compositionSchema = z.object({
