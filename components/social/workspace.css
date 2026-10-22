@@ -467,6 +467,12 @@ body:has(.post-editor-fullscreen) { overflow: hidden; }
 .social-main .canvas-background-layer { width: 100%; justify-content: flex-start !important; gap: 8px; font-size: 10px; padding: 10px !important; color: #8ca49b; }
 .canvas-background-layer svg:last-child { margin-left: auto; }
 .canvas-background-layer.selected { background: #1d332c !important; }
+.canvas-subject-layer { display: flex; align-items: center; gap: 8px; margin: 5px 0; padding: 8px 6px; border: 1px solid #547369; border-radius: 7px; background: #23372f; color: #b9dfcc; }
+.canvas-subject-layer > span:nth-child(2) { flex: 1; min-width: 0; }
+.canvas-subject-layer strong, .canvas-subject-layer small { display: block; }
+.canvas-subject-layer strong { font-size: 10px; font-weight: 550; }
+.canvas-subject-layer small { font-size: 9px; color: #95b4a2; margin-top: 4px; }
+.canvas-mask-notice { flex-shrink: 0; padding: 8px 10px; font-size: 10px; line-height: 1.5; color: #d4c69e; border-top: 1px solid #534c35; background: #29271b; }
 .canvas-layer-actions { display: flex; justify-content: flex-end; gap: 6px; padding: 7px 10px; border-top: 1px solid #34494d; flex-shrink: 0; }
 .canvas-layer-actions button:last-child { margin-left: auto; }
 .social-main .canvas-layers-panel button:hover:not(:disabled) { background: #2a463a; color: #e4fff2; }

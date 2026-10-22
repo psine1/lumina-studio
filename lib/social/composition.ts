@@ -1,5 +1,5 @@
 import { formats, type Brand, type Composition } from "./schema";
-import { compositionLayers, layerComposition } from "./layers";
+import { compositionLayers, compositionStack, layerComposition } from "./layers";
 import { drawTextLayer, layoutLogo, type OverlayGeometry } from "./overlays";
 
 export function subjectMaskKey(composition: Composition) {
@@ -40,7 +40,7 @@ export function imagePlacement(imageWidth: number, imageHeight: number, width: n
 }
 
 export async function renderComposition(canvas: HTMLCanvasElement, composition: Composition, brand: Brand, cancelled = () => false) {
-  const layers = compositionLayers(composition, brand).filter((layer) => layer.visible);
+  const layers = compositionStack(compositionLayers(composition, brand), hasSubjectMask(composition)).flatMap((entry) => entry.type === "layer" && entry.layer.visible ? [entry.layer] : []);
   const [product, background, assets, mask] = await Promise.all([
     loadImage(composition.generatedImage || mediaUrl(composition.productImage)),
     composition.backgroundImage ? loadImage(composition.backgroundImage) : null,

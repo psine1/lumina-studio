@@ -19,7 +19,27 @@ export function patchCompositionLayer(composition: Composition, brand: Brand, id
   return { ...common, layers: compositionLayers(composition, brand).map((layer) => layer.id !== id ? layer : layer.type === "text" ? { ...layer, ...(text !== undefined ? { text } : {}), ...(textColor !== undefined ? { color: textColor } : {}), ...(font !== undefined ? { font } : {}), ...(textStyle ? { style: textStyle } : {}) } : { ...layer, ...(logoStyle ? { style: logoStyle } : {}), ...(logoVisible !== undefined ? { visible: logoVisible } : {}) }) };
 }
 
-export function reorderLayer(layers: OverlayLayer[], id: string, direction: "up" | "down") {
+export type CompositionStackEntry = { type: "layer"; layer: OverlayLayer } | { type: "subject" };
+
+// Bottom to top, in the same order used by the renderer.
+export function compositionStack(layers: OverlayLayer[], hasMask: boolean): CompositionStackEntry[] {
+  const entries = (items: OverlayLayer[]): CompositionStackEntry[] => items.map((layer) => ({ type: "layer", layer }));
+  return hasMask ? [...entries(layers.filter((layer) => layer.style.behindSubject)), { type: "subject" }, ...entries(layers.filter((layer) => !layer.style.behindSubject))] : entries(layers);
+}
+
+export function reorderLayer(layers: OverlayLayer[], id: string, direction: "up" | "down", hasMask = false) {
+  if (hasMask) {
+    const stack = compositionStack(layers, true);
+    const index = stack.findIndex((entry) => entry.type === "layer" && entry.layer.id === id), next = index + (direction === "up" ? 1 : -1);
+    if (index < 0 || next < 0 || next >= stack.length) return layers;
+    [stack[index], stack[next]] = [stack[next], stack[index]];
+    let behindSubject = true;
+    return stack.flatMap((entry) => {
+      if (entry.type === "subject") { behindSubject = false; return []; }
+      const layer = entry.layer;
+      return [{ ...layer, style: { ...layer.style, behindSubject } } as OverlayLayer];
+    });
+  }
   const index = layers.findIndex((layer) => layer.id === id), next = index + (direction === "up" ? 1 : -1);
   if (index < 0 || next < 0 || next >= layers.length) return layers;
   const result = [...layers]; [result[index], result[next]] = [result[next], result[index]];

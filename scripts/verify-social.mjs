@@ -18,7 +18,7 @@ async function moduleUrl(path) {
   return url;
 }
 const schema = await import(await moduleUrl(new URL("../lib/social/schema.ts", import.meta.url)));
-const { compositionLayers, layerComposition, patchCompositionLayer, reorderLayer } = await import(await moduleUrl(new URL("../lib/social/layers.ts", import.meta.url)));
+const { compositionLayers, compositionStack, layerComposition, patchCompositionLayer, reorderLayer } = await import(await moduleUrl(new URL("../lib/social/layers.ts", import.meta.url)));
 const { scaleLayerFromCorner } = await import(await moduleUrl(new URL("../lib/social/resize.ts", import.meta.url)));
 const { zoomViewport } = await import(await moduleUrl(new URL("../lib/social/viewport.ts", import.meta.url)));
 const anchor = { x: 170, y: -90 }, panBefore = { x: 40, y: 25 }, scaleBefore = .5;
@@ -251,6 +251,27 @@ assert.equal(patchCompositionLayer(multiComposition, styledBrand, "image-a", { s
 const reordered = reorderLayer(multiLayers, "text-a", "up");
 assert.deepEqual(reordered.map((layer) => layer.id), ["image-a", "text-a", "text-b", "image-hidden"]);
 assert.deepEqual(reorderLayer(multiLayers, "text-a", "down"), multiLayers);
+const depthLayers = [multiLayers[0], { ...multiLayers[2], style: { ...multiLayers[2].style, behindSubject: true } }, multiLayers[1]];
+const stackIds = (items, masked = true) => compositionStack(items, masked).map((entry) => entry.type === "subject" ? "subject" : entry.layer.id);
+assert.deepEqual(stackIds(depthLayers), ["text-b", "subject", "text-a", "image-a"], "The visible stack matches the renderer, even for older unsorted arrays");
+const movedBehind = reorderLayer(depthLayers, "text-a", "down", true);
+assert.equal(movedBehind.find((item) => item.id === "text-a").style.behindSubject, true);
+assert.deepEqual(stackIds(movedBehind), ["text-b", "text-a", "subject", "image-a"]);
+const movedInFront = reorderLayer(movedBehind, "text-a", "up", true);
+assert.equal(movedInFront.find((item) => item.id === "text-a").style.behindSubject, false);
+assert.deepEqual(stackIds(movedInFront), ["text-b", "subject", "text-a", "image-a"]);
+const imageBehind = reorderLayer(reorderLayer(depthLayers, "image-a", "down", true), "image-a", "down", true);
+assert.equal(imageBehind.find((item) => item.id === "image-a").style.behindSubject, true);
+assert.deepEqual(stackIds(depthLayers, false), depthLayers.map((item) => item.id), "An invalid/missing mask does not imply an invisible subject layer");
+assert.equal(depthLayers[0].style.behindSubject, false, "Reordering never mutates the existing layers");
+const depthComposition = { ...multiComposition, layers: depthLayers, subjectMask: layered.subjectMask };
+depthComposition.subjectMaskKey = subjectMaskKey(depthComposition);
+events.length = 0;
+const depthGeometry = await renderComposition(multiCanvas, depthComposition, styledBrand);
+assert(events.indexOf("Second") < events.indexOf("canvas"));
+assert(events.indexOf("canvas") < events.indexOf("First"), "The masked subject is composited between the two layer groups");
+assert.deepEqual(depthGeometry.layers.map((item) => item.id), ["text-b", "text-a", "image-a"], "Hit targets and layer list share the same real stacking order");
+assert.deepEqual(schema.compositionSchema.parse(JSON.parse(JSON.stringify({ ...depthComposition, layers: movedBehind }))).layers, movedBehind);
 const removedAll = { ...multiComposition, layers: [] };
 assert.deepEqual(compositionLayers(removedAll, styledBrand), []);
 assert.equal((await renderComposition(multiCanvas, removedAll, styledBrand)).layers.length, 0, "Deleted legacy overlays do not reappear");

@@ -32,6 +32,8 @@ El editor ahora permite múltiples capas de texto e imagen (hasta 40). La barra 
 
 El elemento seleccionado muestra cuatro tiradores de esquina para escalar proporcionalmente y mantener fija la esquina opuesta. En texto se escalan juntos el ancho del bloque, la fuente y el espaciado entre letras; las imágenes conservan su relación de aspecto. Se respetan los límites de tamaño de cada estilo y del lienzo. Los tiradores mantienen su tamaño de interacción al cambiar el zoom y también admiten las flechas del teclado (Shift para un cambio mayor). La escala se guarda en los estilos de la capa y se aplica a la exportación.
 
+Con una máscara válida, Capas incluye «Sujeto · máscara» entre los elementos que se dibujan detrás y delante. Subir o bajar una capa a través de esa fila actualiza `behindSubject`; los cambios desde Propiedades también se reflejan en la lista. La lista, los blancos de selección y el renderer comparten el orden efectivo de composición. Si el recorte deja de corresponder a la imagen, formato o encuadre, el panel avisa y omite la fila del sujeto hasta actualizarlo; las capas se muestran delante mientras tanto.
+
 El lienzo y la comparación incluyen zoom de 5% a 400%, ajuste a la ventana, vista al 100%, mano para desplazar y vista ampliada con cierre por Escape. Ctrl/Comando + rueda amplía alrededor del cursor; Espacio activa la mano temporalmente con foco en el lienzo. En comparación ambas imágenes comparten zoom y desplazamiento. Estas herramientas solo afectan la vista y no modifican el proyecto, la composición ni la exportación.
 
 ### Tres modos y referencias múltiples
