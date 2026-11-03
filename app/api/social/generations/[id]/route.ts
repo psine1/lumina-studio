@@ -12,7 +12,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const task = await getGenerationStatus(model.data, id);
     const status = normalizeGenerationStatus(task.data?.status);
     const asset = task.data?.generated?.[0];
-    if (new URL(request.url).searchParams.get("asset") !== "1") return NextResponse.json({ status, hasImage: Boolean(asset) }, { headers: { "Cache-Control": "no-store" } });
+    const detail = task.data?.error || task.error || task.data?.message || task.message;
+    const failureReason = status === "failed" && typeof detail === "string" ? detail.slice(0, 700) : undefined;
+    if (status === "failed") console.error("Social generation failed", { taskId: id, model: model.data, reason: failureReason || "No provider detail" });
+    if (new URL(request.url).searchParams.get("asset") !== "1") return NextResponse.json({ status, hasImage: Boolean(asset), failureReason }, { headers: { "Cache-Control": "no-store" } });
     if (status !== "completed" || !asset) return NextResponse.json({ error: "La imagen todavía no está disponible." }, { status: 409 });
     const normalized = normalizeAsset(asset, "image");
     let response: Response;

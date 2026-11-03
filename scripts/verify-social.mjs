@@ -374,6 +374,16 @@ assert.equal((await statusResponse.json()).status, "completed");
 const assetResponse = await GET(new Request("http://localhost/api/social/generations/test-task-1?asset=1"), { params: Promise.resolve({ id: "test-task-1" }) });
 assert.equal(assetResponse.status, 200); assert.equal(assetResponse.headers.get("Content-Type"), "image/png"); assert.equal((await assetResponse.arrayBuffer()).byteLength, 4);
 assert.equal(paidCalls, 1, "Polling and downloading never create another paid task");
+globalThis.fetch = async (_url, init = {}) => {
+  assert.notEqual(init.method, "POST", "Reading a failed task never starts a paid generation");
+  return Response.json({ data: { task_id: "failed-task", status: "FAILED", generated: [], error: "The AI model did not return a generated result" } });
+};
+const failedStatus = await GET(new Request("http://localhost/api/social/generations/failed-task"), { params: Promise.resolve({ id: "failed-task" }) });
+const failedBody = await failedStatus.json();
+assert.equal(failedBody.status, "failed");
+assert.equal(failedBody.hasImage, false);
+assert.equal(failedBody.failureReason, "The AI model did not return a generated result", "The provider failure reason reaches the review screen");
+assert.equal((await GET(new Request("http://localhost/api/social/generations/failed-task?asset=1"), { params: Promise.resolve({ id: "failed-task" }) })).status, 409);
 let proPosts = 0;
 globalThis.fetch = async (url, init = {}) => {
   url = String(url);

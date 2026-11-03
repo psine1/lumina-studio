@@ -55,7 +55,7 @@ export type AppModel = {
 };
 
 export type MagnificTask = {
-  data?: { task_id?: string; status?: string; generated?: string[] };
+  data?: { task_id?: string; status?: string; generated?: string[]; error?: string; message?: string };
   message?: string;
   error?: string;
 };

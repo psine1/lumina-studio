@@ -95,6 +95,6 @@ export const projectSchema = z.object({
   composition: compositionSchema, createdAt: z.string(), updatedAt: z.string(),
   creativeBrief: z.string().max(1500).default(""),
   generationSettings: generationSettingsSchema.default({}),
-  generation: z.object({ taskId: z.string(), model: socialModelSchema, status: z.enum(["pending", "completed", "failed"]), productReferenceCount: z.number().optional(), totalProductImages: z.number().optional() }).optional(),
+  generation: z.object({ taskId: z.string(), model: socialModelSchema, status: z.enum(["pending", "completed", "failed"]), failureReason: z.string().max(700).optional(), productReferenceCount: z.number().optional(), totalProductImages: z.number().optional() }).optional(),
 });
 export type Project = z.infer<typeof projectSchema>;
