@@ -98,7 +98,7 @@ export async function renderComposition(canvas: HTMLCanvasElement, composition: 
 
 }
 
-export async function downloadComposition(composition: Composition, brand: Brand, name: string, kind: "png" | "jpeg") {
+export async function compositionBlob(composition: Composition, brand: Brand, kind: "png" | "jpeg") {
   const canvas = document.createElement("canvas");
   const geometry = await renderComposition(canvas, composition, brand);
   if (geometry?.textOverflow) throw new Error("El texto excede el lienzo. Reducí el tamaño o aumentá el ancho del bloque antes de descargar.");
@@ -106,6 +106,11 @@ export async function downloadComposition(composition: Composition, brand: Brand
     try { canvas.toBlob((value) => value ? resolve(value) : reject(new Error("No se pudo exportar la imagen.")), `image/${kind}`, .95); }
     catch { reject(new Error("El fondo externo no permite exportación. Quitalo o cargá un fondo desde tu equipo.")); }
   });
+  return blob;
+}
+
+export async function downloadComposition(composition: Composition, brand: Brand, name: string, kind: "png" | "jpeg") {
+  const blob = await compositionBlob(composition, brand, kind);
   const url = URL.createObjectURL(blob), link = document.createElement("a");
   link.href = url; link.download = `${name.replace(/[^\p{L}\p{N}-]+/gu, "-")}.${kind === "jpeg" ? "jpg" : kind}`;
   link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);

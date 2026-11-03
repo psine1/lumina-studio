@@ -38,6 +38,11 @@ async function setting(key: string, value: unknown) {
   if (value === null) tx.objectStore("settings").delete(key); else tx.objectStore("settings").put(value, key);
   await done;
 }
+export const saveSessionData = (key: string, value: unknown) => setting(`session:${key}`, value);
+export async function loadSessionData(key: string): Promise<unknown> {
+  const db = await database();
+  return result(db.transaction("settings", "readonly").objectStore("settings").get(`session:${key}`));
+}
 export async function saveStoredBrand(value: Brand) {
   const parsed = brandSchema.parse(value), db = await database();
   const tx = db.transaction("settings", "readwrite"), done = committed(tx), settings = tx.objectStore("settings");

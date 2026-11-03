@@ -19,10 +19,12 @@ export type SocialGenerationInput = z.infer<typeof socialGenerationSchema>;
 export function referencePlan(product: Pick<Product, "images">, imageUrl: string, settings: GenerationSettings) {
   const unique = [...new Set([imageUrl, ...product.images.nodes.map((image) => image.url)])];
   const target = settings.creativeMode === "new-model" ? settings.targetModelImage : null;
-  const model: SocialImageModel = settings.model && settings.model !== "auto" ? settings.model : settings.referenceStrategy === "all" && unique.length + (target ? 1 : 0) > 3 ? "nano-banana-pro" : "nano-banana-pro-flash";
+  const modelImages = settings.creativeMode === "new-model" ? [...new Set([...(target ? [target] : []), ...(settings.modelViews || [])])] : [];
+  const model: SocialImageModel = settings.model && settings.model !== "auto" ? settings.model : modelImages.length > 1 || settings.referenceStrategy === "all" && unique.length + modelImages.length > 3 ? "nano-banana-pro" : "nano-banana-pro-flash";
   const limit = model === "nano-banana-pro" ? 14 : 3;
-  const productImages = unique.slice(0, limit - (target ? 1 : 0));
-  return { model, limit, productImages, referenceImages: [...productImages, ...(target ? [target] : [])], totalProductImages: unique.length, omitted: unique.length - productImages.length };
+  if (modelImages.length >= limit) throw new Error("Las cuatro vistas del preset requieren Nano Banana Pro o el modelo automático.");
+  const productImages = unique.slice(0, limit - modelImages.length);
+  return { model, limit, productImages, referenceImages: [...productImages, ...modelImages], totalProductImages: unique.length, omitted: unique.length - productImages.length };
 }
 
 export const CREATIVE_MODE_PROMPTS = {
@@ -54,7 +56,7 @@ export function socialImagePrompt(input: SocialGenerationInput, product: { title
     `WORK MODE: ${settings.modeInstructions || CREATIVE_MODE_PROMPTS[settings.creativeMode]}`,
     `REFERENCE ROLES: Images 1 through ${productReferenceCount} show the product from different angles. Image 1 is the primary view. Use these views together as product evidence, not as a collage. Identify the named product using the catalog facts; do not copy the complete outfit when only one item is requested.`,
     "If other views show different color variants, image 1 controls the garment color and print. Use alternate views only for construction evidence; never mix colorways, designs or unrelated garments.",
-    settings.creativeMode === "new-model" ? settings.targetModelImage ? `Image ${productReferenceCount + 1}, the LAST reference, is ONLY the target adult model's identity, body and pose. Use that person wearing the product from images 1 through ${productReferenceCount}. Ignore the target model's original clothing. ${settings.modelDescription}` : `Create a new adult model using this description: ${settings.modelDescription}. Do not retain the person from the product photographs.` : "",
+    settings.creativeMode === "new-model" ? settings.targetModelImage ? `${settings.modelViews?.length ? `All references after image ${productReferenceCount}` : `Image ${productReferenceCount + 1}, the LAST reference,`} show ONLY the same target adult model's identity and body from different angles. Keep this exact person across campaign images, wearing the named product. Ignore the target model's original clothing. ${settings.modelDescription}` : `Create a new adult model using this description: ${settings.modelDescription}. Do not retain the person from the product photographs.` : "",
     `COMPOSITION: ${settings.creativeMode === "garment" ? "Single complete standalone garment with breathing room, in the requested product setting. No human silhouette, no editorial portrait and no collage. Use the brand direction for lighting and atmosphere, never to replace the requested support." : layouts[input.layout]}`,
     `CREATIVE BRIEF: ${input.brief || "Apply the selected brand direction and composition."}`,
     input.refinement ? `ADDITIONAL VISUAL ADJUSTMENT: ${input.refinement}` : "",

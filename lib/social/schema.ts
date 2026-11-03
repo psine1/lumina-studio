@@ -84,11 +84,13 @@ export const generationSettingsSchema = z.object({
   garmentSurface: z.string().trim().max(500).default(""),
   model: z.enum(["auto", "nano-banana-pro-flash", "nano-banana-pro"]).default("auto"),
   targetModelImage: localImage.max(2_000_000).nullable().default(null),
+  modelViews: z.array(localImage.max(2_000_000)).max(4).default([]),
   modelDescription: z.string().max(700).default(""),
   modeInstructions: z.string().max(1800).default(""),
-});
+}).refine(value => value.creativeMode !== "new-model" || value.model !== "nano-banana-pro-flash" || new Set([...(value.targetModelImage ? [value.targetModelImage] : []), ...value.modelViews]).size < 3, "Las cuatro vistas del preset requieren el modelo autom?tico o Pro.");
 export type GenerationSettings = z.infer<typeof generationSettingsSchema>;
 export const projectSchema = z.object({
+  sessionId: z.string().optional(),
   id: z.string(), brand: brandSchema, product: productSchema, concept: conceptSchema,
   composition: compositionSchema, createdAt: z.string(), updatedAt: z.string(),
   creativeBrief: z.string().max(1500).default(""),

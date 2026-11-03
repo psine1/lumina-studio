@@ -124,3 +124,14 @@ La detección usa MediaPipe en el navegador, sin enviar la fotografía ni gastar
 ### Compatibilidad con la vista local Vite / Cloudflare
 
 También se verificó el entorno de `npm run dev` en el puerto 5173: rutas existentes y Social Studio, catálogo real, colecciones y fotografía original. Las peticiones usan `redirect: "manual"`, compatible con Workers; las respuestas 3xx se rechazan sin seguirlas ni reenviar credenciales. La navegación se precompila en el entorno cliente para evitar que su importación diferida dispare una nueva optimización durante el primer clic. Se verificaron 34 módulos de navegación y que el hash de dependencias permanezca estable tras las consultas.
+
+
+## Sesiones de generaci?n y exportaci?n
+
+El inicio presenta primero el formato y permite seleccionar hasta veinte prendas del cat?logo junto con un preset de persona. El brief y el Brand Kit se comparten; cada pieza conserva su producto, caption y composici?n. Preparar la sesi?n no consume cr?ditos. Cada solicitud de generaci?n sigue siendo individual y expl?cita.
+
+Las piezas avanzan en orden. La imagen se compara con la fotograf?a original y debe aprobarse antes de habilitar su editor o generar la pieza siguiente. Regenerar vuelve a requerir aprobaci?n. El batch final solo exporta si todas las piezas tienen imagen generada y aprobada, sin tareas pendientes. Se puede descargar como ZIP de PNG o como im?genes individuales. La exportaci?n usa el mismo renderizador de capas del editor y detecta textos que desbordan.
+
+La cola activa se guarda autom?ticamente en IndexedDB. Al reemplazarla se conservan sus piezas en Mis creaciones. La direcci?n de arte se guarda por nombre con el brief, enfoque, tipo de contenido y copia del Brand Kit, independientemente del preset de persona.
+
+Los presets admiten cuatro referencias de la misma persona adulta: cuerpo completo, tres cuartos, turnaround y rostro. Hay tres espacios base configurables y se pueden agregar otros. **Los espacios base todav?a requieren fotograf?as aprobadas; no incluyen identidades predefinidas.** Un preset completo se env?a como referencia de identidad junto a las fotos de la prenda, deduplicando la vista principal y seleccionando Pro autom?ticamente. Las cuatro vistas no son compatibles con el l?mite de tres referencias de Flash. La consistencia visual debe validarse con el proveedor; estas pruebas no ejecutan generaciones pagas.
