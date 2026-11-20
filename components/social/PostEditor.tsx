@@ -18,6 +18,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 type Panel = "image" | "download";
 type Props = {
+  onContinue?: () => void; continueLabel?: string;
+  onApplyDesign?: () => void;
+  onUndoAppliedDesign?: () => void;
   brandControl?: ReactNode;
   project: Project; busy: boolean; generating: boolean; refinement: string; savedAt?: string;
   onRefinement: (value: string) => void;
@@ -30,7 +33,7 @@ type Props = {
 };
 const panels = [{ id: "image", label: "Imagen IA", icon: ImageIcon }, { id: "download", label: "Descargar", icon: Download }] as const;
 
-export function PostEditor({ brandControl, project, busy, generating, refinement, savedAt, onRefinement, onComposition: _onComposition, onProject: rawOnProject, onGenerate, onBack, onSave, onExport, onProjectDownload, onBackgroundUpload, onNotice, onError }: Props) {
+export function PostEditor({ onContinue, continueLabel, onApplyDesign, onUndoAppliedDesign, brandControl, project, busy, generating, refinement, savedAt, onRefinement, onComposition: _onComposition, onProject: rawOnProject, onGenerate, onBack, onSave, onExport, onProjectDownload, onBackgroundUpload, onNotice, onError }: Props) {
   void _onComposition;
   const history = useEditorHistory(project, rawOnProject);
   const onComposition = history.updateComposition, onProject = history.updateProject;
@@ -124,9 +127,10 @@ export function PostEditor({ brandControl, project, busy, generating, refinement
   return <section className={`social-editor social-post-editor post-editor-fullscreen ${toolsHidden ? "tools-hidden" : ""}`} aria-label="Editor del posteo" onPointerDownCapture={(event) => { if ((event.target as Element).matches("input[type=range]")) history.begin(); }} onPointerUpCapture={history.end} onPointerCancelCapture={history.end}>
     <input ref={imageInput} type="file" className="canvas-asset-input" accept="image/png,image/jpeg,image/webp" aria-label="Agregar imagen al lienzo" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void addImage(file); }} />
     <header className="post-toolbar">
-      <div className="post-title"><button className="post-back" type="button" disabled={busy || generating} onClick={() => dirty ? setConfirmBack(true) : onBack()} aria-label="Volver al brief"><ArrowLeft size={17} /></button><div><span className="post-eyebrow">Social Studio · {project.brand.name}</span><h2>{project.product.title}</h2></div></div>
-      <div className="post-toolbar-actions"><div className="editor-history-buttons" role="group" aria-label="Historial de edición"><button type="button" aria-label="Deshacer" title="Deshacer · Ctrl/⌘ + Z" disabled={!history.canUndo || busy || generating || maskOpen} onClick={history.undo}><Undo2 size={17} /></button><button type="button" aria-label="Rehacer" title="Rehacer · Ctrl/⌘ + Shift + Z" disabled={!history.canRedo || busy || generating || maskOpen} onClick={history.redo}><Redo2 size={17} /></button></div><button type="button" className="post-tools-toggle" aria-label={toolsHidden ? "Mostrar herramientas" : "Ocultar herramientas"} aria-expanded={!toolsHidden} onClick={() => setToolsHidden(!toolsHidden)}>{toolsHidden ? <PanelRightOpen size={17} /> : <PanelRightClose size={17} />}<span>Herramientas</span></button><span className={`post-save-state ${dirty ? "unsaved" : "saved"}`}>{dirty ? <><i />Cambios sin guardar</> : <><Check size={13} />Guardado</>}</span><button type="button" disabled={busy || generating} onClick={onSave}><Save size={15} />Guardar</button><button type="button" className="social-primary" onClick={() => selectPanel("download")}><Download size={15} />Descargar</button></div>
+      <div className="post-title"><button className="post-back" type="button" disabled={busy || generating} onClick={onBack} aria-label="Volver a la campaña"><ArrowLeft size={17} /></button><div><span className="post-eyebrow">Social Studio · {project.brand.name}</span><h2>{project.product.title}</h2></div></div>
+      <div className="post-toolbar-actions">{onContinue && <button className="social-primary" disabled={busy || generating} onClick={onContinue}>{continueLabel || "Ver campaña"}<Check size={15} /></button>}<div className="editor-history-buttons" role="group" aria-label="Historial de edición"><button type="button" aria-label="Deshacer" title="Deshacer · Ctrl/⌘ + Z" disabled={!history.canUndo || busy || generating || maskOpen} onClick={history.undo}><Undo2 size={17} /></button><button type="button" aria-label="Rehacer" title="Rehacer · Ctrl/⌘ + Shift + Z" disabled={!history.canRedo || busy || generating || maskOpen} onClick={history.redo}><Redo2 size={17} /></button></div><button type="button" className="post-tools-toggle" aria-label={toolsHidden ? "Mostrar herramientas" : "Ocultar herramientas"} aria-expanded={!toolsHidden} onClick={() => setToolsHidden(!toolsHidden)}>{toolsHidden ? <PanelRightOpen size={17} /> : <PanelRightClose size={17} />}<span>Herramientas</span></button><span className={`post-save-state ${dirty ? "unsaved" : "saved"}`}>{dirty ? <><i />Cambios sin guardar</> : <><Check size={13} />Guardado</>}</span><button type="button" disabled={busy || generating} onClick={onSave}><Save size={15} />Guardar</button><button type="button" className="social-primary" onClick={() => selectPanel("download")}><Download size={15} />Descargar</button></div>
     </header>
+    {(onApplyDesign || onUndoAppliedDesign) && <div className="post-campaign-design-actions"><span>Diseño de campaña</span>{onApplyDesign && <button type="button" disabled={busy || generating || maskOpen || assetBusy} onClick={onApplyDesign}><Copy size={14} />Aplicar diseño a otras piezas</button>}{onUndoAppliedDesign && <button type="button" disabled={busy || generating || maskOpen || assetBusy} onClick={onUndoAppliedDesign}><Undo2 size={14} />Deshacer aplicación</button>}</div>}
     <div className="post-workspace">
       <div className="post-stage">
 
@@ -186,6 +190,6 @@ export function PostEditor({ brandControl, project, busy, generating, refinement
       </aside>
     </div>
     <SubjectMaskEditor open={maskOpen} onOpenChange={setMaskOpen} controls={false} composition={project.composition} brand={project.brand} onChange={onComposition} onError={onError} />
-    <Dialog open={confirmBack} onOpenChange={setConfirmBack}><DialogContent className="post-leave-dialog"><DialogHeader><DialogTitle>Tenés cambios sin guardar</DialogTitle><DialogDescription>Guardá el proyecto para conservar la imagen, el texto y el logo antes de volver al brief.</DialogDescription></DialogHeader><div className="post-leave-actions"><button type="button" onClick={() => setConfirmBack(false)}>Seguir editando</button><button type="button" onClick={() => { setConfirmBack(false); onBack(); }}>Volver sin guardar</button><button type="button" className="social-primary" disabled={busy} onClick={async () => { const saved = await onSave(); if (saved) { setConfirmBack(false); onBack(); } }}>Guardar y volver</button></div></DialogContent></Dialog>
+    <Dialog open={confirmBack} onOpenChange={setConfirmBack}><DialogContent className="post-leave-dialog"><DialogHeader><DialogTitle>Tenés cambios sin guardar</DialogTitle><DialogDescription>Guardá el proyecto para conservar la imagen, el texto y el logo antes de volver a la campaña.</DialogDescription></DialogHeader><div className="post-leave-actions"><button type="button" onClick={() => setConfirmBack(false)}>Seguir editando</button><button type="button" onClick={() => { setConfirmBack(false); onBack(); }}>Volver sin guardar</button><button type="button" className="social-primary" disabled={busy} onClick={async () => { const saved = await onSave(); if (saved) { setConfirmBack(false); onBack(); } }}>Guardar y volver</button></div></DialogContent></Dialog>
   </section>;
 }

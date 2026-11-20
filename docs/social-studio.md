@@ -1,3 +1,35 @@
+## Campañas por sesión
+
+El recorrido de Social Studio comprende preparación (formato, hasta 20 prendas y casting), dirección de arte con brief y hasta seis referencias con roles, generación y aprobación de una pieza de prueba, generación del resto del batch y vista de campaña antes del editor. Desde la campaña se revisa cada resultado, se regeneran las piezas no aprobadas y se abren las aprobadas para ajustes puntuales. `Volver a campaña` regresa al conjunto. Editar el brief conserva la sesión y las imágenes aprobadas. Regenerar vuelve a exigir aprobación. La exportación está disponible como ZIP o imágenes sueltas.
+
+### Mis campañas
+
+`Mis campañas` es la pantalla inicial de Social Studio. Cada campaña tiene un nombre editable, una vista previa, su cantidad de piezas y aprobaciones, y su fecha de actualización. `Ver campaña` abre su contenido completo para revisar, editar o descargar sus piezas.
+
+El nombre se puede definir al preparar una campaña y cambiar desde su vista de conjunto. La campaña se guarda automáticamente; `Guardar campaña` permite confirmar el guardado de forma explícita. Crear o abrir otra campaña guarda primero los últimos cambios de la actual y mantiene cada conjunto por separado.
+
+Las campañas se almacenan en IndexedDB (`luma-social`, versión 2, store `campaigns`), con las imágenes generadas, las composiciones y capas editables, las aprobaciones, el brief, las referencias y la configuración de generación de cada pieza. El guardado de una campaña y de la sesión activa usa una única transacción: si falla, conserva la versión anterior. No hay sincronización entre dispositivos o navegadores.
+
+Al actualizar, se recupera la sesión activa anterior y se agrupan las piezas guardadas que comparten `sessionId`. La migración conserva el orden de la sesión activa y no modifica campañas que ya existen en la biblioteca. Las creaciones individuales sin sesión siguen disponibles en `Mis creaciones`.
+
+`Guardar dirección de esta sesión` conserva un estilo reutilizable, por separado del nombre y contenido de la campaña. `Descargar batch ZIP` exporta las imágenes finales.
+
+Cada tarjeta de `Mis campañas` ofrece `Eliminar campaña`, con confirmación que identifica el nombre y la cantidad de piezas. El borrado elimina la campaña, sus piezas guardadas y, si corresponde, su sesión activa y tarea pendiente local en una sola transacción. Conserva las demás campañas, los Brand Kits, las direcciones de arte y los archivos descargados. Si falla el borrado, se conserva la copia anterior. Una marca de eliminación impide que una copia antigua o un guardado atrasado vuelva a crear la campaña al recargar.
+
+### Aplicar un diseño a otras piezas
+
+Desde el editor de una pieza perteneciente a una campaña con varias piezas, `Aplicar diseño a otras piezas` abre un selector con vistas previas del diseño aplicado y del diseño actual. Se pueden elegir todas las demás piezas o solo algunas. Confirmar reemplaza sus capas con copias independientes de los textos, imágenes y logos del origen, incluidos contenido, estilos, posiciones relativas, orden y estados de visibilidad/bloqueo. Los proyectos anteriores sin capas explícitas también son compatibles.
+
+Cada destino conserva su fotografía, formato, encuadre, fondo, recorte de sujeto, aprobación, producto, brief y configuración de generación. El efecto de capas detrás del sujeto usa el recorte propio de cada pieza; el selector avisa cuando falta. No genera imágenes ni consume créditos. La vista de conjunto muestra la composición completa con sus capas.
+
+La aplicación se guarda de forma atómica con la campaña antes de confirmar el cambio en pantalla. `Deshacer aplicación` restaura la última aplicación durante la sesión abierta, desde el editor o la vista de campaña. Si alguna pieza recibió ajustes posteriores, no se sobrescriben al deshacer; la aplicación informa el conflicto. El historial de estas aplicaciones no persiste al recargar.
+
+El Brand Kit contiene identidad fija. Sus antiguos campos de dirección e instrucciones se conservan para compatibilidad con archivos existentes, pero ya no participan en el prompt de generación. Una dirección guardada conserva brief, ajustes y referencias sin cambiar de marca. La biblioteca local conserva hasta 30 referencias reutilizables.
+
+Las referencias del producto, las cuatro vistas de identidad y las referencias creativas tienen roles y posiciones separados en el payload; el límite del modelo reserva espacio para todas. Los tres presets base son espacios para completar con las fotos de cada identidad; no incluyen personas precargadas. Se pueden agregar presets propios.
+
+El asistente actual prepara el prompt mediante reglas y permite inspeccionarlo. No hay un agente de análisis visual ni una conexión a Higgsfield: la integración activa continúa usando Magnific. Las pruebas automáticas utilizan respuestas simuladas y no generan imágenes pagas.
+
 # Social Studio — primera versión
 
 Social Studio vive en `/social`, con acceso desde la navegación de imagen, edición, video e historial. No cambia los prompts ni el comportamiento del generador general.

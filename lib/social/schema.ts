@@ -87,7 +87,8 @@ export const generationSettingsSchema = z.object({
   modelViews: z.array(localImage.max(2_000_000)).max(4).default([]),
   modelDescription: z.string().max(700).default(""),
   modeInstructions: z.string().max(1800).default(""),
-}).refine(value => value.creativeMode !== "new-model" || value.model !== "nano-banana-pro-flash" || new Set([...(value.targetModelImage ? [value.targetModelImage] : []), ...value.modelViews]).size < 3, "Las cuatro vistas del preset requieren el modelo autom?tico o Pro.");
+  artReferences: z.array(z.object({ id: z.string(), name: z.string().max(120), role: z.enum(["style", "shot", "object", "model"]), image: localImage.max(2_000_000) })).max(6).default([]),
+}).refine(value => value.model !== "nano-banana-pro-flash" || (value.creativeMode === "new-model" ? new Set([...(value.targetModelImage ? [value.targetModelImage] : []), ...value.modelViews]).size : 0) + value.artReferences.length < 3, "Estas referencias requieren el modelo automático o Pro para reservar al menos una foto de la prenda.");
 export type GenerationSettings = z.infer<typeof generationSettingsSchema>;
 export const projectSchema = z.object({
   sessionId: z.string().optional(),

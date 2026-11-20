@@ -3,3 +3,4 @@ import "@/components/social/social.css";
 import "@/components/social/workspace.css";
 
 export default function SocialPage() { return <SocialStudio />; }
+import "@/components/social/campaign.css";
