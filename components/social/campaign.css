@@ -154,3 +154,23 @@
 .social-main .campaign-library-actions .campaign-delete:hover:not(:disabled) { color: #f1b5ac; background: #382522; border-color: #624039; }
 @media (max-width: 600px) { .campaign-library-cover { height: 300px; } .campaign-library-info { padding: 18px; } }
 @media (prefers-reduced-motion: reduce) { .campaign-library-card { transition: none; } }
+
+.model-preset-applied { display: flex; align-items: center; gap: 12px; padding: 14px; margin-top: 18px; border: 1px solid #526c50; border-radius: 10px; background: #203225; }
+.model-preset-applied > img { width: 52px; height: 70px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.model-preset-applied strong { color: #d5e7c9; font-size: 12px; }
+.session-models .model-preset-applied p { font-size: 11px; line-height: 1.6; margin: 7px 0; color: #a4bea6; }
+
+.setup-aside .session-model-views { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.model-photo-slot { position: relative; display: flex; flex-direction: column; gap: 7px; padding: 9px; border: 1px solid #354b3d; border-radius: 9px; background: #14221b; min-width: 0; }
+.session-model-views .model-photo-slot > img, .model-photo-placeholder { width: 100%; height: 125px; object-fit: contain; border-radius: 5px; background: #0c1712; }
+.model-photo-placeholder { display: grid; place-items: center; color: #6f8b78; border: 1px dashed #3b5343; }
+.model-photo-slot > strong { font-size: 10px; color: #c3d7c2; }
+.model-photo-slot > small { font-size: 9px; color: #89a591; }
+.session-models .model-photo-upload { position: relative; display: flex; align-items: center; justify-content: center; gap: 5px; margin: 3px 0 0; padding: 8px 4px; border: 1px solid #46634c; border-radius: 5px; color: #c9dfc1; cursor: pointer; font-size: 10px; overflow: hidden; }
+.model-photo-upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.model-photo-upload:focus-within { outline: 2px solid #b4cfaa; outline-offset: 2px; }
+.social-main .model-photo-slot > button { font-size: 9px; padding: 4px; background: transparent; border: 0; color: #a6b3a9; }
+.model-photo-progress { display: flex; align-items: center; gap: 8px; color: #c4dfb7 !important; }
+.model-preset-applied { align-items: flex-start; }
+.model-preset-applied strong { display: flex; align-items: center; gap: 6px; }
+.session-models .model-preset-engine { border-top: 1px solid #4c6346; padding-top: 10px; }

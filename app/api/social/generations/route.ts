@@ -10,7 +10,7 @@ const submissions = new Map<string, { signature: string; expires: number; task: 
 export async function POST(request: Request) {
   try {
     const input = socialGenerationSchema.parse(await request.json());
-    if (input.generationSettings.creativeMode === "new-model" && !input.generationSettings.targetModelImage && input.generationSettings.modelDescription.trim().length < 8) return NextResponse.json({ error: "Subí la foto del nuevo modelo o describí un modelo adulto antes de generar." }, { status: 400 });
+    if (input.generationSettings.creativeMode === "new-model" && !input.generationSettings.targetModelImage && !input.generationSettings.modelViews.length && input.generationSettings.modelDescription.trim().length < 8) return NextResponse.json({ error: "Subí la foto del nuevo modelo o describí un modelo adulto antes de generar." }, { status: 400 });
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(input)));
     const signature = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
     const previous = submissions.get(input.requestId);
